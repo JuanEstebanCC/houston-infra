@@ -26,6 +26,8 @@ import { SettingsView } from "../settings/settings-view";
 import { Sidebar } from "./sidebar";
 import { HoustonLogo } from "./experience-card";
 import { CreateAgentDialog } from "./create-workspace-dialog";
+import { ExportAgentWizard } from "../portable/export-wizard";
+import { ImportAgentWizard } from "../portable/import-wizard";
 import { AgentUpdateBanner } from "./agent-update-banner";
 import { DetailPanelProvider } from "./detail-panel-context";
 import { MissionSearchInput } from "../mission-search-input";
@@ -217,6 +219,8 @@ export function WorkspaceShell({ toasts, onDismissToast }: WorkspaceShellProps) 
           </div>
         </Sidebar>
         <CreateAgentDialog />
+        <ExportAgentWizard />
+        <ImportAgentWizard />
         <AgentUpdateBanner />
         <CommandPalette />
         <ShortcutCheatsheet />

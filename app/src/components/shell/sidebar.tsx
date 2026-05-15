@@ -15,7 +15,7 @@ import { buildAgentSidebarItems } from "./agent-sidebar-items";
 import { orderAgents } from "../../lib/agent-order";
 
 export function Sidebar({ children }: { children: ReactNode }) {
-  const { t } = useTranslation(["shell", "common"]);
+  const { t } = useTranslation(["shell", "common", "portable"]);
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const currentWorkspace = useWorkspaceStore((s) => s.current);
   const setCurrentWorkspace = useWorkspaceStore((s) => s.setCurrent);
@@ -48,6 +48,8 @@ export function Sidebar({ children }: { children: ReactNode }) {
     onChangeColor: (agentId, color) => {
       void handleChangeColor(agentId, color);
     },
+    onShareAgent: (agentId) => useUIStore.getState().setShareAgentId(agentId),
+    shareLabel: t("portable:shareMenu"),
   });
   const isTopLevel = viewMode === "dashboard" || viewMode === "connections" || viewMode === "settings";
 

@@ -44,6 +44,10 @@ interface UIState {
    * Set when the user completes M3 Try and clicks "Tutorial complete";
    * cleared when the user dismisses the final tour step. */
   uiTourActive: boolean;
+  /** Agent id queued for the "Share with a friend" wizard, or null. */
+  shareAgentId: string | null;
+  /** Whether the "From a friend" import wizard is open. */
+  importFromFriendOpen: boolean;
   setViewMode: (mode: string) => void;
   setAssistantPanelOpen: (open: boolean) => void;
   setActivityPanelId: (id: string | null) => void;
@@ -63,6 +67,8 @@ interface UIState {
   setJobDescriptionTarget: (target: JobDescriptionTarget | null) => void;
   setTutorialActive: (active: boolean) => void;
   setUiTourActive: (active: boolean) => void;
+  setShareAgentId: (agentId: string | null) => void;
+  setImportFromFriendOpen: (open: boolean) => void;
 }
 
 let toastCounter = 0;
@@ -86,6 +92,8 @@ export const useUIStore = create<UIState>((set) => ({
   jobDescriptionTarget: null,
   tutorialActive: false,
   uiTourActive: false,
+  shareAgentId: null,
+  importFromFriendOpen: false,
 
   setViewMode: (viewMode) => set({ viewMode }),
   setAssistantPanelOpen: (assistantPanelOpen) => set({ assistantPanelOpen }),
@@ -143,4 +151,7 @@ export const useUIStore = create<UIState>((set) => ({
   setJobDescriptionTarget: (jobDescriptionTarget) => set({ jobDescriptionTarget }),
   setTutorialActive: (tutorialActive) => set({ tutorialActive }),
   setUiTourActive: (uiTourActive) => set({ uiTourActive }),
+  setShareAgentId: (shareAgentId) => set({ shareAgentId }),
+  setImportFromFriendOpen: (importFromFriendOpen) =>
+    set({ importFromFriendOpen }),
 }));
