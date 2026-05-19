@@ -7,6 +7,7 @@ export interface KanbanColumnProps {
   label: string
   items: KanbanItem[]
   selectedId?: string | null
+  highlightedId?: string | null
   onAdd?: () => void
   addLabel?: string
   onSelect: (item: KanbanItem) => void
@@ -26,6 +27,7 @@ export function KanbanColumn({
   label,
   items,
   selectedId,
+  highlightedId,
   onAdd,
   addLabel = "Add item",
   onSelect,
@@ -73,6 +75,7 @@ export function KanbanColumn({
                 <KanbanCard
                   item={item}
                   selected={selectedId === item.id}
+                  highlighted={highlightedId === item.id}
                   onSelect={() => onSelect(item)}
                   onDelete={onDelete ? () => onDelete(item) : undefined}
                   onApprove={onApprove ? () => onApprove(item) : undefined}
