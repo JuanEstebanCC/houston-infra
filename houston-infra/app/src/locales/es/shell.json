@@ -1,0 +1,395 @@
+{
+  "sidebar": {
+    "missionControl": "Centro de misiones",
+    "integrations": "Integraciones",
+    "settings": "Configuración",
+    "yourAgents": "Tus agentes",
+    "selectWorkspace": "Elige un espacio de trabajo",
+    "addAgent": "Nuevo agente",
+    "agentMenu": "Menú del agente",
+    "color": "Color",
+    "changeColor": "Cambiar color",
+    "colorLabels": {
+      "charcoal": "Carbón",
+      "forest": "Bosque",
+      "navy": "Azul marino",
+      "purple": "Morado",
+      "crimson": "Carmesí",
+      "orange": "Naranja",
+      "golden": "Dorado"
+    },
+    "needsYouCount_one": "{{count}} asunto necesita tu atención",
+    "needsYouCount_other": "{{count}} asuntos necesitan tu atención",
+    "runningCount_one": "{{count}} asunto en curso",
+    "runningCount_other": "{{count}} asuntos en curso"
+  },
+  "tabActions": {
+    "newMission": "Nueva misión",
+    "startTour": "Guíame"
+  },
+  "sentrySmoke": {
+    "nativeTriggeredTitle": "Prueba nativa de Sentry activada",
+    "nativeTriggeredDescription": "Revisa Sentry para sentry-native-stack-smoke-test."
+  },
+  "errorToast": {
+    "problemTitle": "Houston, tenemos un problema.",
+    "reportSentTitle": "Houston, reporte enviado",
+    "reportSentDescription": "Referencia #{{id}}.",
+    "copyId": "Copiar código"
+  },
+  "agentDelete": {
+    "title": "¿Eliminar el agente?",
+    "description": "Se eliminará el agente y todos sus datos de forma permanente. Esta acción no se puede deshacer."
+  },
+  "workspaceDialog": {
+    "title": "Nuevo espacio de trabajo",
+    "tabNew": "Crear nuevo",
+    "tabGithub": "Importar desde GitHub",
+    "githubDescription": "Importa una plantilla de espacio de trabajo desde GitHub. Crea un espacio con todos sus agentes listos para usar.",
+    "githubPlaceholder": "usuario/repo",
+    "githubImport": "Importar",
+    "githubImporting": "Importando espacio de trabajo y agentes..."
+  },
+  "uiTour": {
+    "counter": "Tour {{current}} de {{total}}",
+    "next": "Siguiente",
+    "previous": "Atrás",
+    "skip": "Saltar tour",
+    "done": "Entendido",
+    "steps": {
+      "assistant": {
+        "title": "Tus agentes",
+        "body": "Todos los agentes de este espacio viven aquí. Cambia entre ellos con un clic."
+      },
+      "board": {
+        "title": "El espacio del agente",
+        "body": "Aquí es donde trabaja el agente seleccionado. Todo lo que ves a la derecha pertenece a ese agente."
+      },
+      "newMission": {
+        "title": "Inicia un nuevo chat",
+        "body": "Haz clic aquí para abrir una conversación nueva. Cada una se vuelve una tarjeta de misión."
+      },
+      "tabActivity": {
+        "title": "Actividad",
+        "body": "El tablero de cada conversación con este agente. En marcha, esperando, listas."
+      },
+      "tabRoutines": {
+        "title": "Rutinas",
+        "body": "Programa trabajo para que corra en segundo plano. Útil para resúmenes diarios y tareas recurrentes."
+      },
+      "tabFiles": {
+        "title": "Archivos",
+        "body": "Documentos que tu asistente puede leer o compartir contigo. Arrastra lo que quieras para dar contexto."
+      },
+      "tabJobDescription": {
+        "title": "Descripción del Puesto",
+        "body": "Las instrucciones permanentes de tu asistente. Edítalas cuando quieras para cambiar cómo se comporta."
+      },
+      "missionControl": {
+        "title": "Centro de Misión",
+        "body": "Cuando agregues más agentes, esto se vuelve el tablero único de todos. Un solo lugar para verlo todo."
+      },
+      "integrations": {
+        "title": "Integraciones",
+        "body": "Herramientas que tus agentes pueden usar, como Gmail y Calendar. Las conexiones viven aquí, compartidas entre todos tus agentes."
+      },
+      "appTour": {
+        "title": "Repite el tour",
+        "body": "¿Olvidaste cómo funciona algo? Haz clic aquí cuando quieras para correr el tour de nuevo."
+      },
+      "newAgent": {
+        "title": "Agrega otro agente",
+        "body": "Puedes crear otro agente aquí cuando quieras, o seguir trabajando con el que ya tienes."
+      },
+      "agentStore": {
+        "title": "Elige por dónde empezar",
+        "body": "Elige Empezar desde cero para un agente en blanco, o toma uno de los nuestros desde la tienda y ajústalo a tu medida."
+      },
+      "outro": {
+        "title": "Ahora ve a construir algo increíble",
+        "body": "Ese es todo el tour. Lo demás depende de ti, diviértete.",
+        "confirm": "Voy a hacer algo increíble"
+      }
+    }
+  },
+  "agentUpdate": {
+    "title": "Actualización del agente disponible",
+    "descriptionOne": "{{name}} tiene una nueva versión disponible.",
+    "descriptionMany": "{{names}} tienen nuevas versiones disponibles.",
+    "descriptionSuffix": "La actualización ya se descargó. Recarga para aplicarla.",
+    "reloadNow": "Recargar ahora"
+  },
+  "authReconnect": {
+    "heading": "Houston, tenemos un problema",
+    "body": "Tu sesión de {{provider}} expiró. Inicia sesión de nuevo para mantener tus agentes funcionando.",
+    "waiting": "Esperando el inicio de sesión en el navegador...",
+    "signInWith": "Iniciar sesión con {{provider}}"
+  },
+  "providerReconnect": {
+    "title": "Sesión expirada",
+    "body": "Tu conexión con {{provider}} se terminó, pasa de vez en cuando. Inicia sesión otra vez y listo.",
+    "reconnect": "Reconectar a {{provider}}",
+    "waiting": "Esperando el inicio de sesión en el navegador...",
+    "tryAgain": "Intentar de nuevo",
+    "launchError": "No se pudo abrir el inicio de sesión. Intenta otra vez."
+  },
+  "toolRuntimeError": {
+    "title": "Algo se atascó",
+    "body": "Una herramienta local no se inició correctamente. Intenta de nuevo y repórtalo si sigue pasando.",
+    "report": "Reportar error",
+    "reporting": "Enviando reporte...",
+    "reportSuccessTitle": "Reporte enviado",
+    "reportSuccessDescription": "Houston recibió los registros.",
+    "reportErrorTitle": "No se pudo enviar el reporte",
+    "reportErrorDescription": "Intenta otra vez en un momento.",
+    "retryErrorTitle": "No se pudo intentar de nuevo",
+    "modelUnsupported": {
+      "title": "Tu plan de ChatGPT no incluye GPT-5.5 Codex",
+      "body": "Cambia a GPT-5.5 para continuar. La variante Codex solo está disponible en algunos planes de ChatGPT (Plus, Pro, Team), no en Business ni Enterprise.",
+      "switchAction": "Cambiar a GPT-5.5",
+      "switching": "Cambiando...",
+      "switchErrorTitle": "No se pudo cambiar el modelo",
+      "switchErrorDescription": "Abre el selector de modelo y elige GPT-5.5 manualmente."
+    }
+  },
+  "updateChecker": {
+    "cardLabel": "Actualización de Houston disponible",
+    "title": "¡Houston, tenemos una actualización!",
+    "availableDescription": "La versión {{version}} está lista. Estás en v{{currentVersion}}.",
+    "downloading": "Descargando e instalando la actualización...",
+    "downloadingProgress": "Descargando e instalando... {{progress}}%",
+    "ready": "Actualización instalada. Reinicia Houston para terminar.",
+    "errorInstall": "Houston no pudo instalar la actualización. Intenta otra vez en un momento.",
+    "errorRelaunch": "La actualización se instaló, pero Houston no pudo reiniciarse solo. Reinícialo manualmente o intenta otra vez.",
+    "detailsHeading": "Novedades",
+    "noDetails": "Esta actualización incluye las últimas correcciones y mejoras.",
+    "primaryAction": "Actualizar y reiniciar",
+    "installingAction": "Instalando actualización...",
+    "relaunchAction": "Reiniciar Houston",
+    "retryAction": "Intentar otra vez",
+    "dismissAction": "Descartar actualización por ahora"
+  },
+  "store": {
+    "searchPlaceholder": "Buscar en la tienda...",
+    "noResults": "Ningún agente coincide con tu búsqueda"
+  },
+  "naming": {
+    "dialogTitle": "Nombra tu agente",
+    "newAgentFallback": "Nuevo agente",
+    "tagline": "Elige un color y pon nombre a tu agente",
+    "namePlaceholder": "p. ej. Proyecto Alpha",
+    "linkExistingProject": "Vincular un proyecto existente",
+    "createAgent": "Crear agente"
+  },
+  "newAgent": {
+    "dialogTitle": "Nuevo agente"
+  },
+  "aiAssist": {
+    "brainLabel": "Configurar con",
+    "cardTitle": "Crear con IA",
+    "cardDescription": "Responde algunas preguntas rápidas y escribiremos las instrucciones de tu agente",
+    "stepTitle": "Configura tu agente",
+    "generateButton": "Generar instrucciones",
+    "generatingMessage": "Escribiendo las instrucciones de tu agente...",
+    "cancelButton": "Cancelar",
+    "generatedTitle": "Aquí están las instrucciones de tu agente",
+    "generatedHelper": "Revisa y edita las instrucciones abajo, luego continúa cuando estés listo",
+    "nameLabel": "Nombre del agente",
+    "namePlaceholder": "p. ej. Gestor de bandeja de entrada",
+    "errorTitle": "Error en la generación",
+    "errorDescription": "No se pudieron generar las instrucciones. Asegúrate de que tu proveedor de IA esté conectado e intenta de nuevo.",
+    "form": {
+      "focusLabel": "¿Con qué debe ayudar este agente?",
+      "focusRequired": "Elige un área de enfoque para continuar",
+      "traitsLabel": "Elige hasta 3 rasgos",
+      "traitsHint": "{{selected}}/{{max}} seleccionados",
+      "verbosityLabel": "¿Qué tan detalladas deben ser las respuestas?",
+      "verbosityMin": "Breve",
+      "verbosityMax": "Exhaustivo",
+      "askFirstLabel": "¿Debe hacer preguntas antes de responder?",
+      "askFirstHint": "El agente aclarará tu solicitud antes de comenzar",
+      "extraLabel": "Instrucciones adicionales",
+      "extraOptional": "opcional",
+      "extraPlaceholder": "Otras preferencias, reglas o contexto para este agente..."
+    },
+    "focus": {
+      "personalProductivity": "Productividad personal",
+      "workBusiness": "Trabajo y negocios",
+      "researchLearning": "Investigación y aprendizaje",
+      "writingEditing": "Escritura y edición",
+      "codingDev": "Programación y desarrollo",
+      "customerSupport": "Atención al cliente",
+      "dataAnalysis": "Datos y análisis",
+      "creativeDesign": "Creatividad y diseño"
+    },
+    "traits": {
+      "concise": "Conciso",
+      "thorough": "Exhaustivo",
+      "friendly": "Amigable",
+      "professional": "Profesional",
+      "creative": "Creativo",
+      "analytical": "Analítico",
+      "proactive": "Proactivo",
+      "cautious": "Cauteloso",
+      "structured": "Estructurado",
+      "casual": "Informal"
+    },
+    "verbosity": {
+      "1": "Muy breve",
+      "2": "Breve",
+      "3": "Equilibrado",
+      "4": "Detallado",
+      "5": "Muy detallado"
+    }
+  },
+  "aiReview": {
+    "stepTitle": "Revisa tu agente",
+    "instructionsLabel": "Instrucciones del agente",
+    "instructionsHelper": "Revisa y edita las instrucciones abajo"
+  },
+  "aiIntegrations": {
+    "stepTitle": "Conecta tus aplicaciones",
+    "stepDescription": "Estas aplicaciones funcionan bien con tu agente. Conéctalas ahora o desde la pestaña Integraciones después.",
+    "notInstalledNote": "Puedes conectar integraciones desde la pestaña Integraciones después de crear tu agente.",
+    "needsAuthNote": "Inicia sesión en Composio para conectar aplicaciones ahora, o hazlo después de crear tu agente.",
+    "signIn": "Iniciar sesión",
+    "connected": "Conectado",
+    "connect": "Conectar",
+    "continueButton": "Continuar"
+  },
+  "aiRoutine": {
+    "stepTitle": "Configura ejecuciones automáticas",
+    "stepDescription": "Tu agente puede correr en automático en un horario. Ajusta los detalles y actívalo cuando estés listo.",
+    "nameLabel": "Nombre de la rutina",
+    "promptLabel": "Qué debe hacer cada vez",
+    "scheduleLabel": "Cuándo se ejecuta",
+    "consentTitle": "Antes de activarlo",
+    "consentScheduled": "Se ejecuta solo según un horario.",
+    "consentUsage": "Cada ejecución usa IA, así que cuenta para tu uso.",
+    "consentNeedsApp": "Si usa una aplicación, esa aplicación debe estar conectada o la rutina no podrá ejecutarse.",
+    "laterNote": "Puedes crear, cambiar o desactivar rutinas cuando quieras desde la pestaña Rutinas del agente.",
+    "enableLabel": "Activar esta rutina",
+    "continueButton": "Continuar"
+  },
+  "engineGate": {
+    "starting": "Iniciando el motor de Houston…"
+  },
+  "providerError": {
+    "rateLimited": {
+      "title": "Alcanzaste un límite de velocidad",
+      "body": "La API de {{provider}} está limitando las solicitudes. Espera un momento e inténtalo de nuevo.",
+      "bodyWithRetry": "La API de {{provider}} está limitando las solicitudes. Vuelve a intentar en {{seconds}}s.",
+      "retry": "Reintentar",
+      "switchModel": "Cambiar de modelo"
+    },
+    "quotaExhausted": {
+      "title": "Sin capacidad disponible",
+      "body": "Tu plan de {{provider}} llegó al límite. Mejora tu plan o cambia de proveedor para continuar.",
+      "upgrade": "Mejorar plan",
+      "switchProvider": "Cambiar de proveedor",
+      "useApiKey": "Usar clave de API en su lugar"
+    },
+    "modelUnavailable": {
+      "title": "Modelo no disponible",
+      "body": "{{model}} no está disponible en tu cuenta de {{provider}}.",
+      "switchToFallback": "Cambiar a {{model}}",
+      "pickAnother": "Elegir otro modelo"
+    },
+    "unauthenticated": {
+      "title": "Conéctate a {{provider}} de nuevo",
+      "bodyTokenExpired": "Tu sesión de {{provider}} expiró. Vuelve a conectarte para continuar.",
+      "bodyNoCredentials": "Houston necesita que inicies sesión en {{provider}} antes de responder.",
+      "bodyInvalidApiKey": "La clave de API de {{provider}} que tiene Houston ya no es válida. Actualízala y vuelve a intentar.",
+      "bodyTokenRevoked": "Se revocó tu acceso a {{provider}}. Inicia sesión de nuevo para continuar.",
+      "bodyUnknown": "Houston no pudo autenticarse con {{provider}}. Vuelve a conectarte e inténtalo de nuevo.",
+      "reconnect": "Reconectar"
+    },
+    "networkUnreachable": {
+      "title": "No se puede conectar con {{provider}}",
+      "body": "Houston no pudo conectarse a la API de {{provider}}. Verifica tu conexión y vuelve a intentar.",
+      "retry": "Reintentar",
+      "checkStatus": "Ver página de estado"
+    },
+    "providerInternal": {
+      "title": "{{provider}} está teniendo un problema",
+      "body": "La API de {{provider}} devolvió un error desde su lado. Inténtalo de nuevo en unos minutos.",
+      "retry": "Reintentar",
+      "checkStatus": "Ver página de estado"
+    },
+    "sessionResumeMissing": {
+      "title": "Sesión reiniciada",
+      "body": "La conversación anterior de {{provider}} no se pudo reabrir, así que Houston la reinició. Tu mensaje se envió de nuevo y el asistente está respondiendo abajo.",
+      "tryAgain": "Reintentar"
+    },
+    "malformedResponse": {
+      "title": "Respuesta dañada",
+      "body": "La respuesta de {{provider}} no se pudo leer. Vuelve a intentar, esto suele ser temporal.",
+      "retry": "Reintentar"
+    },
+    "spawnFailed": {
+      "title": "No se pudo iniciar {{provider}}",
+      "body": "Houston no pudo iniciar {{provider}}. Reinstala e infórmanos si el problema continúa.",
+      "reinstall": "Reinstalar {{provider}}",
+      "reportBug": "Reportar problema"
+    },
+    "unknown": {
+      "title": "Pasó algo inesperado",
+      "body": "Houston no pudo clasificar este error de {{provider}}. Reporta el problema para que aprendamos a manejarlo.",
+      "reportBug": "Reportar problema",
+      "rawLabel": "Salida cruda"
+    }
+  },
+  "palette": {
+    "title": "Paleta de comandos",
+    "description": "Salta a cualquier parte de Houston",
+    "placeholder": "Buscar agentes, misiones, acciones...",
+    "empty": "Sin coincidencias. Prueba con otra palabra.",
+    "groups": {
+      "actions": "Acciones",
+      "agents": "Agentes",
+      "recentMissions": "Misiones recientes"
+    },
+    "actions": {
+      "newMission": "Iniciar misión nueva",
+      "missionControl": "Ir a Centro de Misiones",
+      "integrations": "Abrir Integraciones",
+      "settings": "Abrir Ajustes",
+      "shortcuts": "Ver atajos de teclado"
+    }
+  },
+  "cheatsheet": {
+    "title": "Atajos de teclado",
+    "description": "Usa Houston sin tocar el ratón.",
+    "sections": {
+      "navigation": "Navegación",
+      "cycle": "Recorrer",
+      "help": "Ayuda"
+    },
+    "rows": {
+      "palette": "Abrir paleta de comandos",
+      "missionControl": "Ir a Centro de Misiones",
+      "newMission": "Iniciar misión nueva",
+      "prevAgent": "Agente anterior",
+      "nextAgent": "Agente siguiente",
+      "boardNavigate": "Moverse entre misiones",
+      "boardOpen": "Abrir la misión resaltada",
+      "panelEscape": "Salir del chat y luego cerrar",
+      "cheatsheet": "Mostrar esta hoja"
+    }
+  },
+  "userMenu": {
+    "sendFeedback": "Enviar comentarios"
+  },
+  "feedback": {
+    "title": "Enviar comentarios",
+    "description": "Los reportes de errores nos llegan automáticamente. Esto es para todo lo demás: algo que se siente raro, un flujo que falló, una idea.",
+    "placeholder": "¿Qué tienes en mente?",
+    "send": "Enviar",
+    "sending": "Enviando...",
+    "cancel": "Cancelar",
+    "successTitle": "Recibido, gracias por el reporte.",
+    "successWithId": "El centro de control está en eso. Referencia: {{id}}",
+    "successNoId": "El centro de control está en eso.",
+    "errorTitle": "No se pudo enviar el reporte"
+  }
+}

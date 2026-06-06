@@ -1,0 +1,1523 @@
+# Houston macOS Release Workflow
+#
+# Triggered by pushing a version tag (e.g. `git tag v0.3.0 && git push --tags`).
+#
+# Signing chain:
+#   1. tauri-action builds, signs, notarizes, and staples the .app
+#   2. tauri-action creates and signs the DMG (but does NOT notarize it — known Tauri gap)
+#   3. This workflow notarizes and staples the DMG (with retry)
+#   4. Full verification: .app signature, .app notarization, DMG signature, DMG notarization,
+#      .app-inside-DMG integrity check
+#   5. All artifacts uploaded to a draft GitHub Release (publish manually after QA)
+#
+# Required secrets:
+#   TAURI_SIGNING_PRIVATE_KEY          — Tauri updater key (generate: `pnpm tauri signer generate`)
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD — Password for the updater key
+#   APPLE_CERTIFICATE                  — Base64-encoded .p12 certificate
+#   APPLE_CERTIFICATE_PASSWORD         — Password for the .p12
+#   APPLE_SIGNING_IDENTITY             — e.g. "Developer ID Application: Your Name (TEAM_ID)"
+#   APPLE_API_ISSUER                   — App Store Connect API issuer ID
+#   APPLE_API_KEY                      — App Store Connect API key ID
+#   APPLE_API_KEY_CONTENT              — Base64-encoded .p8 key file
+#   POSTHOG_KEY                        — PostHog project API key (client-side, public-safe)
+#   POSTHOG_HOST                       — PostHog ingest host (e.g. https://us.i.posthog.com)
+#   SUPABASE_URL                       — Supabase project URL
+#   SUPABASE_ANON_KEY                  — Supabase anon key (client-side, RLS-gated)
+#   LINEAR_API_KEY                     — Linear API key for in-app "Report bug" issue creation
+#   LINEAR_TEAM_ID                     — Linear team UUID for in-app "Report bug" issues
+#   SLACK_RELEASE_WEBHOOK_URL          — Slack incoming-webhook to ping the team when a draft release is built
+#   SENTRY_DSN                         — Sentry crash reporting DSN
+#   SENTRY_AUTH_TOKEN                  — Sentry CLI auth token (org-scoped, perms: project:releases, project:read, org:read). Used to upload source maps + Rust debug symbols and create/finalize releases. Empty → skip the Sentry upload step (forks, personal builds).
+#   POSTHOG_PERSONAL_API_KEY           — PostHog personal API key (scope: annotation:write) used by the finalize job to mark every release on PostHog charts. Empty → skip the annotation step.
+#   POSTHOG_PROJECT_ID                 — PostHog project ID (numeric) the annotation lands under.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  # Lightweight orchestration job that runs before the heavy builds. It
+  # creates the draft GitHub Release with finalized notes and exports
+  # `release-notes.md` as a workflow artifact so the macOS, Windows, and
+  # finalize jobs can read it without re-running the notes builder. This
+  # job exists so build-macos and build-windows can run IN PARALLEL — they
+  # each only need the draft to upload into, not each other's output.
+  prep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      # Fail fast if the git tag, app/package.json, and app/src-tauri/Cargo.toml
+      # disagree on the version. All three feed the SAME Sentry release identity:
+      #   - the tag drives `houston-app@<version>` in the upload steps
+      #   - package.json drives Vite's __APP_VERSION__ (the JS release string)
+      #   - Cargo.toml drives sentry::release_name!() (the Rust release string)
+      # A mismatch ships events under a release Sentry has no artifacts for, so
+      # frames silently fail to resolve. Cheap reads only — `prep` has no Rust
+      # toolchain, so we grep Cargo.toml rather than run `cargo metadata`.
+      - name: Verify tag matches manifest versions
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG_V=$(jq -r .version app/package.json)
+          CARGO_V=$(grep -m1 '^version = ' app/src-tauri/Cargo.toml | sed -E 's/version = "(.*)"/\1/')
+          echo "tag=$TAG package.json=$PKG_V Cargo.toml=$CARGO_V"
+          if [ "$TAG" != "$PKG_V" ] || [ "$TAG" != "$CARGO_V" ]; then
+            echo "::error::Version mismatch — tag '$TAG', app/package.json '$PKG_V', app/src-tauri/Cargo.toml '$CARGO_V' must all match. Bump them together before tagging."
+            exit 1
+          fi
+
+      # Resolve `release-notes.md`. Two paths:
+      #
+      # 1. Author-written notes at `.github/release-notes/<version>.md`
+      #    — preferred. Whoever drives the release (Claude in our flow,
+      #    or a human) drops a markdown file alongside the version-bump
+      #    commit, tagged commit, etc. Used verbatim.
+      #
+      # 2. Auto-generated fallback grouping conventional-commit subjects
+      #    in `git log <prev-tag>..HEAD` by prefix:
+      #      Features (feat) / Fixes (fix) / Docs (docs) /
+      #      CI & infra (ci) / Changes (refactor|perf|style|test)
+      #    `chore:` and untyped commits are hidden. Use this when a fast
+      #    hotfix doesn't justify hand-written notes.
+      #
+      # Either way the release stays a draft, so the author can still
+      # polish before publishing.
+      - name: Build release notes
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          AUTHORED=".github/release-notes/${VERSION}.md"
+
+          if [ -f "$AUTHORED" ]; then
+            echo "Using author-written notes from $AUTHORED"
+            cp "$AUTHORED" release-notes.md
+          else
+            echo "No $AUTHORED — falling back to auto-generated changelog"
+
+            PREV_TAG=$(git tag --sort=-v:refname --list 'v*' | grep -v "^${GITHUB_REF_NAME}$" | head -1)
+            if [ -z "$PREV_TAG" ]; then
+              echo "No previous tag; diffing against HEAD~50"
+              RANGE="HEAD~50..HEAD"
+              COMPARE=""
+            else
+              RANGE="$PREV_TAG..HEAD"
+              COMPARE="**Full changelog**: https://github.com/${{ github.repository }}/compare/$PREV_TAG...${GITHUB_REF_NAME}"
+            fi
+
+            section() {
+              local title="$1"; shift
+              local pattern="$1"; shift
+              local matches
+              matches=$(git log "$RANGE" --no-merges --pretty='- %s' | grep -E "^- ($pattern)(\([^)]+\))?:" || true)
+              if [ -n "$matches" ]; then
+                printf '\n### %s\n\n%s\n' "$title" "$matches"
+              fi
+            }
+
+            {
+              echo "## Houston v$VERSION"
+              section "Features"  "feat"
+              section "Fixes"     "fix"
+              section "Docs"      "docs"
+              section "CI & infra" "ci"
+              section "Changes"   "refactor|perf|style|test"
+              echo
+              # Keep the upgrade reminder everyone needs — drag-install
+              # doesn't reliably replace a running .app.
+              echo "### Before you upgrade"
+              echo ""
+              echo "- Quit Houston before installing. macOS doesn't always replace a running app. If in doubt: \`rm -rf /Applications/Houston.app\` and drag the new copy in."
+              echo ""
+              if [ -n "$COMPARE" ]; then
+                echo "$COMPARE"
+              fi
+            } > release-notes.md
+          fi
+
+          echo "----- release-notes.md -----"
+          cat release-notes.md
+          echo "----- end -----"
+
+      # Build the notes payload the in-app updater embeds in latest.json. The
+      # Tauri updater carries exactly ONE notes string (latest.json -> notes ->
+      # update.body), so the non-English translations of a release's notes ride
+      # inside it as a trailing HTML comment that every renderer which does NOT
+      # understand it (Streamdown, GitHub, older Houston builds) silently drops,
+      # leaving the English body. New builds strip the comment and swap in the
+      # user's language (see app/src/lib/update-details.ts::selectUpdateNotes).
+      #
+      # The English body is release-notes.md (above). Optional translations
+      # come from sibling files written by whoever drives the release:
+      #   .github/release-notes/<version>.es.md   (Latin-American Spanish)
+      #   .github/release-notes/<version>.pt.md   (Brazilian Portuguese)
+      # A translation only attaches when its authored English source exists, so
+      # the auto-generated changelog (English-only) ships plain, exactly as before.
+      - name: Build localized updater notes
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          DIR=".github/release-notes"
+          EN="$DIR/${VERSION}.md"
+          ES="$DIR/${VERSION}.es.md"
+          PT="$DIR/${VERSION}.pt.md"
+
+          # Start from the resolved English notes (authored OR auto-generated).
+          cp release-notes.md update-notes.txt
+
+          # A translation with no authored English source would describe
+          # different content than the auto-generated changelog, so fail loudly
+          # rather than ship a mismatch.
+          if [ ! -f "$EN" ]; then
+            if [ -f "$ES" ] || [ -f "$PT" ]; then
+              echo "::error::Found a translated release-notes file but no English $EN. Add the English notes, or remove the translations."
+              exit 1
+            fi
+            echo "No authored English notes; updater notes stay English-only."
+            exit 0
+          fi
+
+          # The i18n comment terminates on the first '-->'. A notes file that
+          # contains one would truncate the JSON, so reject it up front.
+          for f in "$EN" "$ES" "$PT"; do
+            if [ -f "$f" ] && grep -q -- '-->' "$f"; then
+              echo "::error::$f contains '-->', which collides with the i18n marker terminator. Remove it."
+              exit 1
+            fi
+          done
+
+          # Compact JSON of the translations that exist. jq handles all string
+          # escaping (quotes, newlines, unicode), so the comment stays one safe line.
+          ARGS=()
+          FILTER='{}'
+          if [ -f "$ES" ]; then ARGS+=(--rawfile es "$ES"); FILTER="$FILTER + {es: \$es}"; fi
+          if [ -f "$PT" ]; then ARGS+=(--rawfile pt "$PT"); FILTER="$FILTER + {pt: \$pt}"; fi
+
+          if [ ${#ARGS[@]} -eq 0 ]; then
+            echo "Authored English notes only; no translations to embed."
+            exit 0
+          fi
+
+          I18N=$(jq -nc "${ARGS[@]}" "$FILTER")
+          printf '\n\n<!--houston-i18n:%s-->\n' "$I18N" >> update-notes.txt
+
+          echo "----- update-notes.txt -----"
+          cat update-notes.txt
+          echo "----- end -----"
+
+      - name: Create empty draft release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Houston v$VERSION" \
+            --notes-file release-notes.md \
+            --draft
+
+          echo "::notice::Empty draft release created at https://github.com/${{ github.repository }}/releases/tag/$GITHUB_REF_NAME — macOS + Windows builds will upload artifacts in parallel."
+
+      # Hand release-notes.md to downstream jobs (Slack notifier in
+      # finalize, updater-manifest builder in build-macos) without each of
+      # them re-running the notes-resolution logic on its own runner.
+      - name: Upload release-notes.md artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-notes
+          path: release-notes.md
+          retention-days: 1
+
+      # The localized notes payload (English body + the i18n comment) goes to
+      # build-macos, which embeds it verbatim as latest.json's `notes`. Kept a
+      # separate artifact from release-notes.md so the GitHub release body and
+      # the Slack preview stay clean English while the updater carries all three
+      # languages.
+      - name: Upload updater-notes artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: update-notes
+          path: update-notes.txt
+          retention-days: 1
+
+  build-macos:
+    needs: prep
+    runs-on: macos-latest
+    timeout-minutes: 60
+    # Job-level env so the per-step `if: ${{ env.SENTRY_AUTH_TOKEN != '' }}`
+    # gate can actually SEE the secret. A step's OWN `env:` block is NOT in
+    # scope for that same step's `if:` — GitHub evaluates `if:` before the
+    # step env is set up. SENTRY_AUTH_TOKEN was defined only inside the upload
+    # step, so the gate read an empty string and the Sentry upload was skipped
+    # on EVERY run (official builds included) — which is why production stack
+    # traces stayed minified / hex despite the maps + debug-files existing.
+    # Hoisting to job scope fixes the gate while still resolving to '' on forks
+    # without the secret, so forks keep skipping the upload.
+    env:
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          # Full history + all tags so the release-notes step can diff
+          # against the previous release tag (`git log <prev>..HEAD`).
+          # Default is shallow depth=1 with no tags, which would make the
+          # notes builder fall through to the HEAD~50 fallback every time.
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Setup Rust (universal macOS targets)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache Rust artifacts
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            app/src-tauri/target
+          key: ${{ runner.os }}-cargo-universal-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-universal-
+
+      - name: Write Apple API key to disk
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "${{ secrets.APPLE_API_KEY_CONTENT }}" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
+
+      # Stage bundled CLI binaries (codex universal, composio per-arch)
+      # into `app/src-tauri/resources/bin/` so Tauri's `bundle.resources`
+      # picks them up. The fetch script:
+      #   - Downloads each CLI for both arches from URLs pinned in
+      #     cli-deps.json
+      #   - Verifies SHA-256 against pinned checksums (any mismatch
+      #     fails the release — release artifacts must be reproducible)
+      #   - lipos codex into a single universal Mach-O binary
+      #   - Prunes cross-platform composio acp-adapters that the
+      #     resolved arch can never execute (saves ~580 MB)
+      #   - Stages cli-deps.json itself so the runtime claude-code
+      #     installer can read pinned URLs + checksums offline
+      #
+      # macos-latest comes with curl + unzip + jq + lipo preinstalled.
+      # If a future runner image drops jq, install it explicitly
+      # rather than rewriting the script in a dep-free language; jq is
+      # the right tool for cli-deps.json.
+      - name: Stage bundled CLI dependencies (codex, composio)
+        run: |
+          set -euo pipefail
+          if ! command -v jq >/dev/null 2>&1; then
+            echo "::group::Installing jq (missing on runner)"
+            brew install jq
+            echo "::endgroup::"
+          fi
+          ./scripts/fetch-cli-deps.sh both
+
+          echo "=== Staged bundle ==="
+          ls -lah app/src-tauri/resources/bin/
+          echo "=== Sizes ==="
+          du -sh app/src-tauri/resources/bin/*
+
+          # Sanity: every shippable artifact must be present and the
+          # codex binary must be a fat (universal) Mach-O.
+          test -x app/src-tauri/resources/bin/codex
+          test -x app/src-tauri/resources/bin/composio-aarch64/composio
+          test -x app/src-tauri/resources/bin/composio-x86_64/composio
+          test -f app/src-tauri/resources/bin/cli-deps.json
+
+          LIPO_INFO=$(lipo -info app/src-tauri/resources/bin/codex)
+          echo "$LIPO_INFO"
+          echo "$LIPO_INFO" | grep -q 'arm64' \
+            || { echo "::error::bundled codex missing arm64 slice"; exit 1; }
+          echo "$LIPO_INFO" | grep -q 'x86_64' \
+            || { echo "::error::bundled codex missing x86_64 slice"; exit 1; }
+
+      # Import the Developer ID certificate into a temporary keychain so
+      # we can pre-sign the bundled CLI binaries (codex + composio) BEFORE
+      # tauri-action runs.
+      #
+      # Why pre-sign here:
+      #   tauri-action calls `codesign --force --deep` on the .app bundle,
+      #   which signs the main app + frameworks + helpers but does NOT
+      #   recurse into nested directories under `Resources/`. Result:
+      #   `Resources/bin/composio-aarch64/composio` (one level deeper than
+      #   `Resources/bin/codex`) ships UNSIGNED, and Apple notary rejects
+      #   the .app with "signature invalid / no secure timestamp / hardened
+      #   runtime not enabled" on those nested binaries.
+      #
+      # Pre-signing each Mach-O at stage time with Developer ID + hardened
+      # runtime + secure timestamp leaves a valid signature in place that
+      # tauri-action's deep sign won't disturb (it skips files inside
+      # nested Resources/ subdirs entirely).
+      - name: Import Apple Developer ID for pre-signing bundled CLIs
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/houston-presign.keychain-db"
+          KEYCHAIN_PWD=$(openssl rand -base64 32)
+
+          security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+
+          CERT_FILE="$RUNNER_TEMP/houston-cert.p12"
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$CERT_FILE"
+          security import "$CERT_FILE" -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: \
+            -s -k "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+
+          # Add our keychain to the user search list so codesign finds the
+          # identity without needing --keychain on every call. We keep the
+          # existing user keychains in the list so tauri-action's own
+          # cert-import (which targets the default login keychain) still
+          # works unchanged.
+          USER_KEYCHAINS=$(security list-keychains -d user | sed 's/[" ]//g' | tr '\n' ' ')
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $USER_KEYCHAINS
+
+          rm -f "$CERT_FILE"
+
+      - name: Pre-sign bundled CLI binaries (Developer ID + hardened runtime + timestamp)
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          BIN=app/src-tauri/resources/bin
+          for f in "$BIN/codex" \
+                   "$BIN/composio-aarch64/composio" \
+                   "$BIN/composio-x86_64/composio" \
+                   "$BIN/gemini-aarch64/gemini" \
+                   "$BIN/gemini-x86_64/gemini"; do
+            echo "=== Signing $f ==="
+            codesign --force --options runtime --timestamp \
+              --sign "$APPLE_SIGNING_IDENTITY" "$f"
+            codesign -dvv "$f" 2>&1 | grep -E '^(Authority|TeamIdentifier|Timestamp|CodeDirectory)' || true
+          done
+
+      # Build the engine sidecar for BOTH macOS architectures BEFORE the
+      # Tauri app build.
+      #
+      # Tauri's universal-apple-darwin build invokes cargo once per real
+      # triple (aarch64 + x86_64) and expects per-triple sidecars at
+      # `src-tauri/binaries/houston-engine-<triple>`. `build.rs` copies them
+      # there, but it needs the underlying binary to exist for the triple
+      # cargo is currently compiling for. So we build BOTH up front.
+      #
+      # Shipping an Intel-only or arm64-only engine would break half of our
+      # Mac users — so a missing triple fails hard here rather than producing
+      # a silently-broken DMG.
+      - name: Build houston-engine sidecar (aarch64 + x86_64) + lipo universal
+        run: |
+          set -euo pipefail
+          for TRIPLE in aarch64-apple-darwin x86_64-apple-darwin; do
+            echo "=== Building houston-engine for $TRIPLE ==="
+            cargo build --release --target "$TRIPLE" -p houston-engine-server
+            test -x "target/$TRIPLE/release/houston-engine" \
+              || { echo "::error::engine binary missing for $TRIPLE"; exit 1; }
+            # Pack DWARF into a .dSYM right after the build, while the per-object
+            # (.o) files the debug map points at are still on disk and unmoved.
+            # `debug = "line-tables-only"` keeps line tables in the .o, not in
+            # the linked Mach-O, so without this Sentry can only show function
+            # names (no file:line) for engine panics. Uploaded in the Sentry
+            # step below.
+            dsymutil "target/$TRIPLE/release/houston-engine" \
+              -o "target/$TRIPLE/release/houston-engine.dSYM"
+          done
+
+          # Tauri's `--target universal-apple-darwin` bundler looks for a
+          # SINGLE fat binary at `binaries/houston-engine-universal-apple-darwin`.
+          # `build.rs` stages per-triple binaries during the per-arch cargo
+          # invocations (aarch64 + x86_64), but there's no cargo target for
+          # "universal-apple-darwin" — so nothing stages the fat one.
+          # We lipo the two per-arch outputs manually here, before tauri-action
+          # runs, so the bundler finds it.
+          echo "=== Lipo universal sidecar ==="
+          mkdir -p app/src-tauri/binaries
+          lipo -create \
+            target/aarch64-apple-darwin/release/houston-engine \
+            target/x86_64-apple-darwin/release/houston-engine \
+            -output app/src-tauri/binaries/houston-engine-universal-apple-darwin
+          chmod +x app/src-tauri/binaries/houston-engine-universal-apple-darwin
+          lipo -info app/src-tauri/binaries/houston-engine-universal-apple-darwin
+
+          ls -la \
+            target/aarch64-apple-darwin/release/houston-engine \
+            target/x86_64-apple-darwin/release/houston-engine \
+            app/src-tauri/binaries/houston-engine-universal-apple-darwin
+
+      # Build only — no release creation (no tagName).
+      # tauri-action handles certificate import, code signing, .app notarization + stapling.
+      #
+      # `--target universal-apple-darwin` produces one .app / .dmg whose
+      # binaries are fat (arm64 + x86_64). Tauri invokes cargo twice under
+      # the hood — once per real triple — and lipos the outputs. Our engine
+      # sidecar is handled the same way via the per-triple
+      # `binaries/houston-engine-<triple>` files staged by `build.rs`.
+      # Bundle output lands under `target/universal-apple-darwin/release/bundle/`.
+      - name: Build Tauri app (universal)
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: app
+          args: --target universal-apple-darwin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_PATH: ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
+          POSTHOG_KEY: ${{ secrets.POSTHOG_KEY }}
+          POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          LINEAR_TEAM_ID: ${{ secrets.LINEAR_TEAM_ID }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+
+      - name: Locate build artifacts
+        id: artifacts
+        run: |
+          # Cargo workspace: target dir is at workspace root, not per-crate.
+          # Universal builds emit under `target/universal-apple-darwin/release/bundle/`
+          # (NOT `target/release/bundle/` — that path is only populated by a
+          # default-triple build).
+          BUNDLE="target/universal-apple-darwin/release/bundle"
+
+          APP=$(ls -d "$BUNDLE/macos/"*.app 2>/dev/null | head -1)
+          DMG=$(ls -t "$BUNDLE/dmg/"*.dmg 2>/dev/null | head -1)
+          TAR=$(ls -t "$BUNDLE/macos/"*.app.tar.gz 2>/dev/null | head -1)
+          SIG=$(ls -t "$BUNDLE/macos/"*.app.tar.gz.sig 2>/dev/null | head -1)
+
+          missing=()
+          [ -e "$APP" ] || missing+=(".app")
+          [ -f "$DMG" ] || missing+=(".dmg")
+          [ -f "$TAR" ] || missing+=(".app.tar.gz")
+          [ -f "$SIG" ] || missing+=(".app.tar.gz.sig")
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing build artifacts: ${missing[*]}"
+            echo "--- Bundle contents ---"
+            ls -laR "$BUNDLE" || true
+            exit 1
+          fi
+
+          echo "app=$APP" >> "$GITHUB_OUTPUT"
+          echo "dmg=$DMG" >> "$GITHUB_OUTPUT"
+          echo "tar=$TAR" >> "$GITHUB_OUTPUT"
+          echo "sig=$SIG" >> "$GITHUB_OUTPUT"
+
+          echo "Artifacts:"
+          echo "  .app:        $APP"
+          echo "  .dmg:        $DMG"
+          echo "  .app.tar.gz: $TAR"
+          echo "  .sig:        $SIG"
+
+      - name: Verify .app signing and notarization
+        run: |
+          echo "=== Code signature ==="
+          codesign -vvv --deep --strict "${{ steps.artifacts.outputs.app }}"
+
+          echo "=== Notarization staple ==="
+          xcrun stapler validate "${{ steps.artifacts.outputs.app }}"
+
+      # Explicit assertions on the bundled `houston-engine` sidecar.
+      # `--deep` above validates all embedded binaries, but a regression in
+      # tauri-action could silently ship an ad-hoc-signed or
+      # hardened-runtime-less sidecar — Gatekeeper would then quarantine-kill
+      # it on first launch for upgraders and the app hangs at splash.
+      # Fail the release if any of these invariants drifts.
+      # Bundled CLI invariants — codex, composio per-arch + the
+      # cli-deps.json manifest must all be present inside the
+      # `.app/Contents/Resources/bin/` tree, and every Mach-O must be
+      # signed with Developer ID + hardened runtime so Gatekeeper +
+      # subprocess execution work post-notarization.
+      #
+      # We assert every check that, if violated, would visibly break
+      # the user experience: missing files, ad-hoc signatures (Gatekeeper
+      # quarantine), missing arch slices, and broken codex universal
+      # layout. Any failure is fatal — a release where the bundled CLI
+      # works for half of users is worse than no release.
+      - name: Verify bundled CLI invariants
+        run: |
+          set -euo pipefail
+          APP="${{ steps.artifacts.outputs.app }}"
+          BIN="$APP/Contents/Resources/bin"
+
+          echo "=== 1. Bundle layout ==="
+          test -d "$BIN" || { echo "::error::Resources/bin/ missing"; exit 1; }
+          test -x "$BIN/codex" || { echo "::error::Resources/bin/codex missing or not executable"; exit 1; }
+          test -x "$BIN/composio-aarch64/composio" || { echo "::error::composio-aarch64/composio missing"; exit 1; }
+          test -x "$BIN/composio-x86_64/composio"  || { echo "::error::composio-x86_64/composio missing"; exit 1; }
+          test -x "$BIN/gemini-aarch64/gemini"     || { echo "::error::gemini-aarch64/gemini missing"; exit 1; }
+          test -x "$BIN/gemini-x86_64/gemini"      || { echo "::error::gemini-x86_64/gemini missing"; exit 1; }
+          test -f "$BIN/cli-deps.json" || { echo "::error::cli-deps.json manifest missing"; exit 1; }
+          ls -lah "$BIN"
+
+          echo "=== 2. codex is universal (arm64 + x86_64) ==="
+          LIPO=$(lipo -info "$BIN/codex")
+          echo "$LIPO"
+          echo "$LIPO" | grep -q 'arm64'  || { echo "::error::codex missing arm64 slice"; exit 1; }
+          echo "$LIPO" | grep -q 'x86_64' || { echo "::error::codex missing x86_64 slice"; exit 1; }
+
+          echo "=== 3. Mach-O binaries have Developer ID + hardened runtime ==="
+          # Walk every executable file under Resources/bin/ and assert
+          # signing invariants. We only care about Mach-O — `.mjs` /
+          # `services/` / json files don't need signatures.
+          fail=0
+          while IFS= read -r f; do
+            if file "$f" | grep -q 'Mach-O'; then
+              echo ""
+              echo "Checking: $f"
+              if ! codesign -vvv "$f" 2>&1; then
+                echo "::error::codesign verify failed: $f"
+                fail=1
+                continue
+              fi
+              AUTH=$(codesign -dvv "$f" 2>&1 | grep '^Authority=' | head -1 || echo "")
+              echo "  $AUTH"
+              if ! echo "$AUTH" | grep -q 'Developer ID Application'; then
+                echo "::error::Bundled binary not signed with Developer ID: $f"
+                codesign -dvv "$f" 2>&1 | sed 's/^/  /' || true
+                fail=1
+              fi
+              FLAGS=$(codesign -dv "$f" 2>&1 | grep -E '^CodeDirectory.*flags=' | head -1 || echo "")
+              echo "  $FLAGS"
+              if ! echo "$FLAGS" | grep -q 'runtime'; then
+                echo "::error::Bundled binary missing hardened runtime: $f"
+                fail=1
+              fi
+            fi
+          done < <(find "$BIN" -type f -perm -u+x)
+
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::One or more bundled CLI binaries failed signing checks"
+            exit 1
+          fi
+          echo "=== Bundled CLI checks passed ==="
+
+      - name: Verify engine sidecar signing
+        run: |
+          APP="${{ steps.artifacts.outputs.app }}"
+
+          # Tauri strips the triple suffix on bundle; fall back to glob if it doesn't.
+          SIDECAR="$APP/Contents/MacOS/houston-engine"
+          if [ ! -f "$SIDECAR" ]; then
+            SIDECAR=$(find "$APP/Contents" -type f -name 'houston-engine*' ! -name '*.dSYM*' | head -1)
+          fi
+
+          if [ -z "$SIDECAR" ] || [ ! -x "$SIDECAR" ]; then
+            echo "::error::engine sidecar missing or not executable inside .app"
+            echo "--- .app contents ---"
+            find "$APP/Contents" -type f | head -50
+            exit 1
+          fi
+          echo "Sidecar: $SIDECAR"
+
+          echo "=== 1. Signature valid ==="
+          codesign -vvv "$SIDECAR"
+
+          echo "=== 2. Signed with Developer ID (not ad-hoc) ==="
+          AUTH=$(codesign -dvv "$SIDECAR" 2>&1 | grep '^Authority=' | head -1)
+          echo "$AUTH"
+          if ! echo "$AUTH" | grep -q 'Developer ID Application'; then
+            echo "::error::sidecar not signed with Developer ID — Gatekeeper will kill it on first launch"
+            codesign -dvv "$SIDECAR" 2>&1 || true
+            exit 1
+          fi
+
+          echo "=== 3. Hardened runtime enabled ==="
+          FLAGS=$(codesign -dv "$SIDECAR" 2>&1 | grep -E '^CodeDirectory.*flags=' | head -1)
+          echo "$FLAGS"
+          if ! echo "$FLAGS" | grep -q 'runtime'; then
+            echo "::error::sidecar missing hardened runtime flag — required for notarization + subprocess execution"
+            codesign -dv "$SIDECAR" 2>&1 || true
+            exit 1
+          fi
+
+          echo "=== 4. Universal (fat) binary — both arm64 + x86_64 ==="
+          LIPO=$(lipo -info "$SIDECAR" 2>&1 || true)
+          echo "$LIPO"
+          if ! echo "$LIPO" | grep -q 'arm64'; then
+            echo "::error::sidecar missing arm64 slice — Apple Silicon users will fail to launch"
+            exit 1
+          fi
+          if ! echo "$LIPO" | grep -q 'x86_64'; then
+            echo "::error::sidecar missing x86_64 slice — Intel Mac users will fail to launch (regression to v0.x universal rollout)"
+            exit 1
+          fi
+
+          echo "=== Sidecar checks passed ==="
+
+      # Sentry upload: source maps (Vite output in app/dist/) + Rust debug
+      # symbols for the Tauri app binary and both per-triple houston-engine
+      # sidecars. Tag everything as `houston-app@<version>` so events fired
+      # from the running app — whose release name is set by
+      # sentry::release_name!() in lib.rs — match the uploaded artifacts and
+      # resolve to real file:line frames.
+      #
+      # Skips silently when SENTRY_AUTH_TOKEN is unset so forks and personal
+      # builds don't fail. Without uploads, Sentry events still arrive but
+      # show as minified soup / hex addresses, which makes triage impossible.
+      - name: Upload source maps + Rust debug symbols to Sentry
+        if: ${{ env.SENTRY_AUTH_TOKEN != '' }}
+        env:
+          # SENTRY_AUTH_TOKEN now comes from the job-level env (see the job
+          # header) so the `if:` above can see it. Only the non-secret routing
+          # vars live here.
+          SENTRY_ORG: houston-cd
+          SENTRY_PROJECT: houston-app
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          RELEASE="houston-app@${VERSION}"
+
+          # Use the sentry-cli pinned in app/package.json (devDep @sentry/cli)
+          # via the pnpm-linked bin, NOT `curl get-cli | bash` (which installs
+          # an unpinned latest, drifting from the version that ran
+          # `sourcemaps inject` at build time). The bin shim works on both the
+          # macOS runner and the Windows git-bash runner, so the per-OS PATH
+          # workaround is no longer needed.
+          SENTRY_CLI="app/node_modules/.bin/sentry-cli"
+          "$SENTRY_CLI" --version
+
+          echo "=== 1. Create release ${RELEASE} ==="
+          # Idempotent + guards the parallel race with the Windows job, which
+          # also creates this release. Finalize happens once, last, in the
+          # `finalize` job after every arch has uploaded.
+          "$SENTRY_CLI" releases new "$RELEASE"
+          "$SENTRY_CLI" releases set-commits --auto "$RELEASE" || \
+            echo "::warning::set-commits --auto failed (likely shallow clone or first release); continuing"
+
+          echo "=== 2. Upload Vite source maps ==="
+          # Debug IDs are injected at BUILD time (the app's beforeBuildCommand
+          # runs scripts/sentry-inject.mjs after `pnpm build`, before cargo
+          # embeds the frontend), so the shipped bundle and this map share
+          # identical byte offsets and the same Debug ID. Do NOT inject here — a
+          # post-package inject shifts offsets and every in-app JS frame fails to
+          # symbolicate (Sentry error `js_invalid_sourcemap_location`).
+          "$SENTRY_CLI" sourcemaps upload --release "$RELEASE" app/dist
+
+          echo "=== 3. Upload Rust debug info (app + engine, dSYM) ==="
+          # macOS gotcha: `debug = "line-tables-only"` keeps DWARF line tables
+          # in the per-object (.o) files, NOT in the linked Mach-O. Uploading
+          # just the executable gives Sentry function names but never file:line.
+          # `dsymutil` walks the binary's debug map (OSO stabs) and packs the
+          # DWARF into a standalone .dSYM, which is the DIF Sentry symbolicates
+          # against. The engine .dSYMs are produced in the sidecar-build step;
+          # we dsymutil the universal app binary here (its per-arch .o still
+          # live under target/{aarch64,x86_64}-apple-darwin/release/deps).
+          APP="${{ steps.artifacts.outputs.app }}"
+          # The bundled executable is named after the Cargo binary
+          # (`houston-app`), NOT the productName ("Houston"). The sidecar
+          # alongside it is `houston-engine`.
+          APP_EXE="$APP/Contents/MacOS/houston-app"
+          if [ ! -x "$APP_EXE" ]; then
+            echo "::error::Tauri app executable missing at $APP_EXE"
+            find "$APP/Contents/MacOS" -maxdepth 1 -type f -print || true
+            exit 1
+          fi
+          # dsymutil is best-effort: a miss should warn, never abort the
+          # release (the upload then falls back to executable-only, no worse
+          # than the pre-dSYM behavior).
+          dsymutil "$APP_EXE" -o "$APP_EXE.dSYM" \
+            || echo "::warning::dsymutil failed for the app binary — native app frames may stay unresolved"
+          # Executables (code-id) always upload. dSYMs (DWARF) join the upload
+          # only when present, each checked + warned individually so one bad
+          # dSYM can't fail the whole release.
+          UPLOAD=(
+            "$APP_EXE"
+            target/aarch64-apple-darwin/release/houston-engine
+            target/x86_64-apple-darwin/release/houston-engine
+          )
+          for D in "$APP_EXE.dSYM" \
+                   target/aarch64-apple-darwin/release/houston-engine.dSYM \
+                   target/x86_64-apple-darwin/release/houston-engine.dSYM; do
+            if [ -d "$D" ]; then
+              "$SENTRY_CLI" debug-files check "$D" \
+                || echo "::warning::debug-files check failed for $D — native frames from it may not resolve to file:line"
+              UPLOAD+=( "$D" )
+            else
+              echo "::warning::missing dSYM $D — native frames from it may stay unresolved"
+            fi
+          done
+          # sentry-cli recurses into the .dSYM bundles. --include-sources bundles
+          # the referenced source files (Houston's own Rust + cargo-registry
+          # crates present in this checkout) so native stack traces show inline
+          # CODE context, not just file:line. The repo is open source, so there's
+          # no exposure concern — this brings native to parity with the JS source
+          # maps (which already inline sourcesContent).
+          "$SENTRY_CLI" debug-files upload --include-sources "${UPLOAD[@]}"
+
+      # Rename the mounted-volume label from "Houston" (Tauri default,
+      # derived from productName) to "Houston Installer" before we
+      # notarize. Done here so notarization sees the final bytes — any
+      # post-notarize edit would invalidate the staple.
+      - name: Rename DMG volume to "Houston Installer"
+        run: |
+          ./scripts/rename-dmg-volume.sh "${{ steps.artifacts.outputs.dmg }}" "Houston Installer"
+
+      # rename-dmg-volume.sh rebuilds the DMG (hdiutil convert), which strips
+      # the Developer ID signature tauri-action applied to the original .dmg.
+      # Notarization staples a ticket but does NOT code-sign, so without this
+      # the DMG reaches "Verify complete signing chain" unsigned ("code object
+      # is not signed at all"). Re-sign with Developer ID here, before
+      # notarization, so the notarized + stapled DMG carries a valid signature.
+      # The identity is already in the keychain from the pre-sign import step.
+      - name: Re-sign DMG after volume rename
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          DMG="${{ steps.artifacts.outputs.dmg }}"
+          codesign --force --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$DMG"
+          echo "=== Re-signed DMG with Developer ID ==="
+          codesign -vvv "$DMG"
+
+      - name: Notarize DMG
+        timeout-minutes: 25
+        run: |
+          DMG="${{ steps.artifacts.outputs.dmg }}"
+          KEY=~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
+
+          for attempt in 1 2 3; do
+            echo "=== Attempt $attempt/3 ==="
+            if xcrun notarytool submit "$DMG" \
+                --key-id "${{ secrets.APPLE_API_KEY }}" \
+                --key "$KEY" \
+                --issuer "${{ secrets.APPLE_API_ISSUER }}" \
+                --wait; then
+              echo "Notarization succeeded"
+              xcrun stapler staple "$DMG"
+              exit 0
+            fi
+
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::DMG notarization failed after 3 attempts"
+              exit 1
+            fi
+
+            echo "Retrying in 30s..."
+            sleep 30
+          done
+
+      - name: Verify complete signing chain
+        run: |
+          DMG="${{ steps.artifacts.outputs.dmg }}"
+
+          echo "=== 1. DMG code signature ==="
+          codesign -vvv "$DMG"
+
+          echo "=== 2. DMG notarization staple ==="
+          xcrun stapler validate "$DMG"
+
+          echo "=== 3. DMG Gatekeeper assessment ==="
+          spctl -a -t open --context context:primary-signature -vv "$DMG" \
+            || echo "::warning::spctl returned non-zero (common on CI — not a real issue if steps 1-2 passed)"
+
+          echo "=== 4. .app inside DMG ==="
+          MOUNT=$(mktemp -d)
+          hdiutil attach "$DMG" -mountpoint "$MOUNT" -nobrowse -quiet
+
+          INNER_APP=$(ls -d "$MOUNT/"*.app 2>/dev/null | head -1)
+          if [ -z "$INNER_APP" ]; then
+            echo "::error::No .app found inside DMG"
+            hdiutil detach "$MOUNT" -quiet || true
+            exit 1
+          fi
+
+          codesign -vvv --deep --strict "$INNER_APP"
+          xcrun stapler validate "$INNER_APP"
+          hdiutil detach "$MOUNT" -quiet
+
+          echo "=== All checks passed ==="
+
+      - name: Generate checksums
+        run: |
+          shasum -a 256 \
+            "${{ steps.artifacts.outputs.dmg }}" \
+            "${{ steps.artifacts.outputs.tar }}" \
+            > checksums-sha256.txt
+          cat checksums-sha256.txt
+
+      # update-notes.txt is built once in the `prep` job and shared via
+      # workflow artifact. We need it here because the updater-manifest step
+      # embeds it verbatim into latest.json's `notes` so existing users see the
+      # new-version description on the auto-update prompt, in their own language
+      # (English body + the trailing houston-i18n comment carrying es/pt).
+      - name: Download updater-notes artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: update-notes
+
+      - name: Generate updater manifest
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          TAR_NAME=$(basename "${{ steps.artifacts.outputs.tar }}")
+          SIG=$(cat "${{ steps.artifacts.outputs.sig }}")
+          URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$TAR_NAME"
+
+          # Four keys required. We ship ONE universal tarball that runs on
+          # both Apple Silicon and Intel, so every platform key points at the
+          # same URL + signature:
+          #   - darwin-aarch64 / darwin-aarch64-app  (Apple Silicon)
+          #   - darwin-x86_64  / darwin-x86_64-app   (Intel)
+          # Tauri updater checks the `-app` suffix first, then falls back to
+          # generic; Intel users on older Houston installs hit `darwin-x86_64`
+          # and need it present or they never see the update prompt.
+          jq -n \
+            --arg v "$VERSION" \
+            --arg sig "$SIG" \
+            --arg url "$URL" \
+            --arg date "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" \
+            --rawfile notes update-notes.txt \
+            '{
+              version: $v,
+              notes: $notes,
+              pub_date: $date,
+              platforms: {
+                "darwin-aarch64": {
+                  signature: $sig,
+                  url: $url
+                },
+                "darwin-aarch64-app": {
+                  signature: $sig,
+                  url: $url
+                },
+                "darwin-x86_64": {
+                  signature: $sig,
+                  url: $url
+                },
+                "darwin-x86_64-app": {
+                  signature: $sig,
+                  url: $url
+                }
+              }
+            }' > latest.json
+
+          echo "latest.json:"
+          cat latest.json
+
+      # Draft release was already created in the `prep` job. We only need
+      # to upload the macOS-specific artifacts to it. `--clobber` makes
+      # this safe to re-run if a partial upload left a previous attempt
+      # behind.
+      #
+      # Note: latest.json uploaded here advertises macOS only. The
+      # `finalize` job pulls it back down after `build-windows` finishes
+      # and extends it with the Windows entry.
+      - name: Upload macOS artifacts to draft release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "$GITHUB_REF_NAME" \
+            "${{ steps.artifacts.outputs.dmg }}" \
+            "${{ steps.artifacts.outputs.tar }}" \
+            "${{ steps.artifacts.outputs.sig }}" \
+            latest.json \
+            checksums-sha256.txt \
+            --clobber
+
+          echo "::notice::macOS artifacts uploaded to draft https://github.com/${{ github.repository }}/releases/tag/$GITHUB_REF_NAME"
+
+  # ============================================================================
+  # Windows MSI build — runs IN PARALLEL with build-macos. Both jobs only
+  # need the empty draft release that `prep` creates so they can upload
+  # into it. The `finalize` job runs after both finish and stitches
+  # `latest.json` together (Windows entry added to the macOS-only base
+  # uploaded by build-macos).
+  #
+  # Scope (v1, weekend test build):
+  #   * Windows x64 only — no ARM64 build, no NSIS installer.
+  #   * No SignPath signing — the MSI ships UNSIGNED. Windows users will see
+  #     a SmartScreen warning ("Don't run / More info → Run anyway") on
+  #     first install. This is acceptable for personal testing; before we
+  #     ship to actual users we'll wire SignPath Foundation (free OSS) into
+  #     a `sign-windows` job between this and the upload step.
+  #
+  # Build pipeline (runs once per matrix arch, x86_64 + aarch64):
+  #   1. Stage CLI deps via `scripts/fetch-cli-deps.sh windows-<arch>`.
+  #      Codex is downloaded + zstd-decompressed; composio is BUILT FROM
+  #      SOURCE on this Windows runner using a pinned commit on the
+  #      gethouston/composio fork (windows-x64 = houston-windows-support
+  #      branch, windows-arm64 = houston-windows-arm64 branch with the
+  #      bun:ffi fallback patch) — see `cli-deps.json`'s
+  #      `composio.build."windows-<arch>"` block for the pin and the
+  #      `$build_comment` for why upstream can't ship Windows yet.
+  #      git-bash-<arch>.7z.exe (PortableGit SFX) is also staged so the
+  #      first-launch extractor in houston-engine-core::git_bash gives
+  #      Claude Code its bash.exe dependency without user setup.
+  #   2. Build the houston-engine sidecar for the matrix target.
+  #      Tauri's externalBin picks it up at `binaries/houston-engine.exe`
+  #      (build.rs::stage_engine_sidecar names it
+  #      `houston-engine-<target>.exe` per Tauri's per-target convention).
+  #   3. Run `pnpm tauri build --target <matrix.target>` to produce the
+  #      MSI under `target/<matrix.target>/release/bundle/msi/*.msi`.
+  #   4. Upload the per-arch MSI + .sig to the draft release. `finalize`
+  #      then merges both into a single latest.json with separate
+  #      `windows-x86_64` and `windows-aarch64` entries the in-app
+  #      updater consumes.
+  build-windows:
+    needs: prep
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    # Job-level so the upload step's `if: ${{ env.SENTRY_AUTH_TOKEN != '' }}`
+    # can see it — same step-`if`-can't-read-step-env footgun as build-macos.
+    env:
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+    strategy:
+      # Both arches build in parallel. fail-fast=false so a transient
+      # ARM-runner outage doesn't kill the x64 release that 90%+ of
+      # Windows users actually install.
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            bun_arch: x64
+            fetch_mode: windows-x64
+            target: x86_64-pc-windows-msvc
+            runner: windows-latest
+          - arch: aarch64
+            bun_arch: arm64
+            fetch_mode: windows-arm64
+            target: aarch64-pc-windows-msvc
+            # GitHub-hosted Windows-on-ARM runner. Goes through the
+            # same VS 2022 toolchain as the x64 runner; the only
+            # practical difference is the host arch + which Bun /
+            # composio variants we pull. See:
+            # https://github.com/actions/partner-runner-images/issues/61
+            # If this label ever disappears, fall back by changing
+            # `runner: windows-latest` + adding
+            # `rustup target add aarch64-pc-windows-msvc` and the
+            # ARM64 component of VS Build Tools — but that path
+            # requires running the linker via /arm64 cross-toolchain
+            # which has subtle issues with mingw-w64-linked C deps in
+            # libsql, so prefer the native runner whenever it's up.
+            runner: windows-11-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Setup Rust (windows-msvc target)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust artifacts
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            app/src-tauri/target
+            target
+          key: ${{ runner.os }}-cargo-${{ matrix.arch }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-${{ matrix.arch }}-
+
+      # Bun + jq + zstd are required by `scripts/fetch-cli-deps.sh`. Bun
+      # is needed because the composio Windows binary is built FROM
+      # SOURCE on this runner via `bun build:binary:cross
+      # --target=bun-windows-<arch>`. The version MUST match the pin
+      # in `cli-deps.json#composio.build."windows-<arch>".bun_version` —
+      # mismatched Bun produces a binary with subtle behavioral
+      # differences that bite at runtime, so we install via direct
+      # GitHub release download (deterministic) rather than the
+      # web-installer (which can drift if oven-sh changes the env-var
+      # contract on `install.ps1`).
+      - name: Install Bun (pinned to cli-deps.json)
+        shell: pwsh
+        run: |
+          $platformKey = "windows-${{ matrix.bun_arch }}"
+          if ("${{ matrix.bun_arch }}" -eq "x64") {
+            $bunVersion = (Get-Content cli-deps.json | ConvertFrom-Json).composio.build.'windows-x64'.bun_version
+            $bunBundle = "bun-windows-x64"
+          } else {
+            $bunVersion = (Get-Content cli-deps.json | ConvertFrom-Json).composio.build.'windows-arm64'.bun_version
+            # Bun's GitHub release artifact for Windows ARM64 is published
+            # as `bun-windows-aarch64.zip` (asymmetric with the
+            # `--target=bun-windows-arm64` CLI flag in cli-deps.json,
+            # which still uses `arm64`). Both the URL stem and the zip's
+            # inner folder use `aarch64`.
+            $bunBundle = "bun-windows-aarch64"
+          }
+          Write-Host "Installing Bun $bunVersion ($bunBundle, direct GitHub release download)"
+          $bunDir = "$HOME\.bun\bin"
+          New-Item -ItemType Directory -Force -Path $bunDir | Out-Null
+          $url = "https://github.com/oven-sh/bun/releases/download/bun-v$bunVersion/$bunBundle.zip"
+          $zipPath = "$env:TEMP\$bunBundle.zip"
+          Invoke-WebRequest -Uri $url -OutFile $zipPath
+          Expand-Archive -Force -Path $zipPath -DestinationPath "$env:TEMP\bun-extract"
+          Copy-Item -Force "$env:TEMP\bun-extract\$bunBundle\bun.exe" "$bunDir\bun.exe"
+          Remove-Item -Recurse -Force "$env:TEMP\bun-extract", $zipPath
+          # Add bun to PATH for subsequent steps.
+          echo "$bunDir" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          $actual = & "$bunDir\bun.exe" --version
+          if ($actual.Trim() -ne $bunVersion) {
+            Write-Error "Bun version mismatch after install: got '$actual', expected '$bunVersion'"
+            exit 1
+          }
+          Write-Host "Pinned Bun OK: $actual"
+
+      # jq is preinstalled on the GitHub Windows runners. zstd is NOT, and the
+      # Chocolatey community feed (community.chocolatey.org) 504s intermittently
+      # — it failed the ARM64 release leg repeatedly. Pull zstd straight from
+      # its GitHub release instead (pinned), which is far more reliable. The
+      # x64 binary runs natively on x64 and under emulation on the ARM64 runner;
+      # it's only used to decompress the codex archive in fetch-cli-deps.sh.
+      - name: Install jq + zstd
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          jq --version
+
+          $ZSTD = "1.5.6"
+          $zip = "zstd-v$ZSTD-win64.zip"
+          $url = "https://github.com/facebook/zstd/releases/download/v$ZSTD/$zip"
+          $tmp = Join-Path $env:RUNNER_TEMP $zip
+          $out = Join-Path $env:RUNNER_TEMP "zstd"
+          Write-Host "Downloading $url"
+          for ($i = 1; $i -le 3; $i++) {
+            try { Invoke-WebRequest -Uri $url -OutFile $tmp; break }
+            catch { if ($i -eq 3) { throw }; Write-Host "retry $i…"; Start-Sleep 5 }
+          }
+          Expand-Archive -Force -Path $tmp -DestinationPath $out
+          # Zip extracts to a single `zstd-v<ver>-win64\` folder containing zstd.exe.
+          $dir = (Get-ChildItem -Path $out -Directory | Select-Object -First 1).FullName
+          if (-not $dir) { $dir = $out }
+          echo "$dir" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          & "$dir\zstd.exe" --version
+
+      # Stage bundled CLI binaries: codex.exe (downloaded + zstd),
+      # composio-<arch>/composio.exe (built from gethouston/composio
+      # fork — windows-x64 from branch houston-windows-support,
+      # windows-arm64 from branch houston-windows-arm64 with the
+      # bun:ffi fallback patch), and git-bash-<arch>.7z.exe (PortableGit
+      # SFX, extracted on first launch by houston-engine-core::git_bash).
+      # The fetch script handles `pnpm install` + `tsdown` +
+      # `bun build:binary:cross` for the composio fork; full build is
+      # ~3-5 minutes on a warm runner.
+      - name: Stage bundled CLI dependencies (codex, composio, git-bash)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/fetch-cli-deps.sh ${{ matrix.fetch_mode }}
+
+          echo "=== Staged bundle ==="
+          ls -lah app/src-tauri/resources/bin/
+          echo "=== Sizes ==="
+          du -sh app/src-tauri/resources/bin/*
+
+          # Sanity: every Windows artifact must be present.
+          test -f app/src-tauri/resources/bin/codex.exe
+          test -f app/src-tauri/resources/bin/composio-${{ matrix.arch }}/composio.exe
+          test -f app/src-tauri/resources/bin/composio-${{ matrix.arch }}/run-helpers-runtime.mjs
+          test -f app/src-tauri/resources/bin/composio-${{ matrix.arch }}/acp-adapters/codex/win32-${{ matrix.bun_arch }}/codex-acp.exe
+          test -f app/src-tauri/resources/bin/git-bash-${{ matrix.arch }}.7z.exe
+          test -f app/src-tauri/resources/bin/cli-deps.json
+
+      # Build the engine sidecar for the matrix target BEFORE
+      # `tauri build`. build.rs::stage_engine_sidecar copies it to
+      # `app/src-tauri/binaries/houston-engine-<target>.exe` which is
+      # what Tauri's externalBin pattern expects.
+      - name: Build houston-engine sidecar (${{ matrix.target }})
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --release --target ${{ matrix.target }} -p houston-engine-server
+          test -x "target/${{ matrix.target }}/release/houston-engine.exe" \
+            || { echo "::error::engine binary missing for ${{ matrix.target }}"; exit 1; }
+          echo "Sidecar size:"
+          ls -lah target/${{ matrix.target }}/release/houston-engine.exe
+
+      - name: Build Tauri app (Windows MSI)
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: app
+          args: --target ${{ matrix.target }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The Tauri updater key signs the MSI for the auto-updater
+          # flow. We're not wiring auto-update for Windows in v1, but
+          # signing the artifact now keeps the code path active and
+          # the .sig file uploaded for when we do.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          POSTHOG_KEY: ${{ secrets.POSTHOG_KEY }}
+          POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          LINEAR_TEAM_ID: ${{ secrets.LINEAR_TEAM_ID }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+
+      - name: Locate MSI + updater signature artifacts
+        id: artifacts-windows
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE="target/${{ matrix.target }}/release/bundle"
+
+          MSI=$(ls -t "$BUNDLE/msi/"*.msi 2>/dev/null | head -1 || true)
+          # Tauri's `createUpdaterArtifacts: true` emits an `<msi>.sig`
+          # next to the .msi (minisign signature over the .msi bytes).
+          # The Tauri updater on Windows verifies this against the
+          # public key embedded at build time and only proceeds if it
+          # matches. No `.sig` ⇒ no auto-update.
+          SIG=$(ls -t "$BUNDLE/msi/"*.msi.sig 2>/dev/null | head -1 || true)
+
+          missing=()
+          [ -f "$MSI" ] || missing+=("MSI")
+          [ -f "$SIG" ] || missing+=("MSI .sig (updater signature)")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Windows artifacts missing: ${missing[*]}"
+            echo "Bundle contents:"
+            ls -laR "$BUNDLE" 2>&1 | head -50
+            exit 1
+          fi
+
+          echo "msi=$MSI" >> "$GITHUB_OUTPUT"
+          echo "sig=$SIG" >> "$GITHUB_OUTPUT"
+          echo "Artifacts:"
+          echo "  .msi:     $MSI ($(du -sh "$MSI" | cut -f1))"
+          echo "  .msi.sig: $SIG ($(wc -c < "$SIG") bytes)"
+
+      # Sentry upload (Windows): Rust debug symbols for the Tauri app binary
+      # and matrix-arch houston-engine.exe. MSVC emits PDBs alongside both
+      # binaries in release mode with debug = "line-tables-only" in workspace
+      # Cargo.
+      # Source maps are uploaded per-arch (NOT once from the macOS job): Vite
+      # content-hashes the bundle on every build, so the Windows x64 / arm64 /
+      # macOS bundles ship distinct filenames (e.g. index-<hash>.js). Uploading
+      # only from macOS left every Windows JS frame unmatchable; each arch must
+      # upload its own app/dist to the shared release.
+      #
+      # x86_64 + aarch64 each run this in parallel via the matrix; both
+      # contribute their debug symbols to the same `houston-app@<version>`
+      # release. Skips silently when SENTRY_AUTH_TOKEN is unset.
+      - name: Upload source maps + Rust debug symbols to Sentry (${{ matrix.arch }})
+        if: ${{ env.SENTRY_AUTH_TOKEN != '' }}
+        shell: bash
+        env:
+          # SENTRY_AUTH_TOKEN comes from the job-level env (see job header) so
+          # the `if:` above can read it. Only routing vars here.
+          SENTRY_ORG: houston-cd
+          SENTRY_PROJECT: houston-app
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          RELEASE="houston-app@${VERSION}"
+
+          # Use the lockfile-pinned sentry-cli from app/package.json via the
+          # pnpm-linked bin. pnpm writes a git-bash-compatible shim (no .exe
+          # suffix) into node_modules/.bin, so the same path resolves on both
+          # the macOS and Windows runners — no more get-cli install + PATH hunt.
+          SENTRY_CLI="app/node_modules/.bin/sentry-cli"
+          "$SENTRY_CLI" --version
+
+          echo "=== Upload ${{ matrix.target }} Vite source maps ==="
+          # This arch's bundle carries its own Vite content-hashes, so its maps
+          # must be uploaded under the shared release or Windows JS frames stay
+          # minified in Sentry. `releases new` is idempotent and guards the
+          # parallel race with the macOS job, which also creates this release.
+          #
+          # Debug IDs are injected at BUILD time (the app's beforeBuildCommand
+          # runs scripts/sentry-inject.mjs after `pnpm build`, before cargo
+          # embeds the frontend), so the shipped bundle and this map share
+          # identical byte offsets. Do NOT inject here — a post-package inject
+          # shifts offsets and every in-app JS frame fails to symbolicate
+          # (Sentry error `js_invalid_sourcemap_location`), which is the exact
+          # bug this resolves.
+          "$SENTRY_CLI" releases new "$RELEASE"
+          "$SENTRY_CLI" sourcemaps upload --release "$RELEASE" app/dist
+
+          echo "=== Upload ${{ matrix.target }} debug symbols ==="
+          # Rust converts `-` to `_` for PDB stems
+          # (houston-app.exe -> houston_app.pdb, houston-engine.exe ->
+          # houston_engine.pdb). Upload exe + PDB pairs so Sentry can index by
+          # the executable debug-id and resolve through the PDB line tables.
+          test -f "target/${{ matrix.target }}/release/houston-app.exe"
+          test -f "target/${{ matrix.target }}/release/houston_app.pdb"
+          test -f "target/${{ matrix.target }}/release/houston-engine.exe"
+          test -f "target/${{ matrix.target }}/release/houston_engine.pdb"
+          # --include-sources bundles the referenced source (Houston's Rust +
+          # cargo crates in this checkout) so native frames show inline CODE,
+          # not just file:line. Open-source repo → no exposure concern.
+          "$SENTRY_CLI" debug-files upload --include-sources \
+            "target/${{ matrix.target }}/release/houston-app.exe" \
+            "target/${{ matrix.target }}/release/houston_app.pdb" \
+            "target/${{ matrix.target }}/release/houston-engine.exe" \
+            "target/${{ matrix.target }}/release/houston_engine.pdb"
+
+      - name: Upload Windows MSI + updater signature to draft release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Both files are required for users on older Houston builds
+          # to upgrade automatically: the .msi is the installer payload
+          # and the .sig is the minisign signature the in-app updater
+          # verifies before swallowing the new MSI.
+          # `--clobber` lets us re-run the workflow without renaming
+          # the artifact if a prior partial upload left one in place.
+          gh release upload "$GITHUB_REF_NAME" \
+            "${{ steps.artifacts-windows.outputs.msi }}" \
+            "${{ steps.artifacts-windows.outputs.sig }}" \
+            --clobber
+
+          echo "::notice::Windows MSI + .sig uploaded to draft https://github.com/${{ github.repository }}/releases/tag/$GITHUB_REF_NAME"
+          echo "::warning::This MSI is UNSIGNED (code-signing wise) — Windows SmartScreen will warn on first install. The updater minisign signature above is separate; it covers in-app auto-update verification, not OS code-signing. SignPath integration lands in a follow-up PR."
+
+  # ============================================================================
+  # Stitch the parallel mac + win builds into one finished draft release.
+  # Runs on a clean ubuntu runner — no source tree, no signing identities,
+  # no platform-specific tooling needed. Just `gh`, `jq`, and `curl`,
+  # which are all preinstalled on `ubuntu-latest`.
+  #
+  # Two responsibilities:
+  #   1. Extend the macOS-only `latest.json` (uploaded by build-macos)
+  #      with a `windows-x86_64` entry pointing at the MSI + .sig that
+  #      build-windows uploaded. After this, both Mac and Windows users
+  #      see auto-update prompts on next launch.
+  #   2. Notify Slack — moved here from build-windows because that step
+  #      needs `release-notes.md` and the file only existed on the macOS
+  #      runner. Now `prep` publishes it as a workflow artifact and any
+  #      downstream job downloads it.
+  finalize:
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # No `actions/checkout` step on this job — finalize doesn't need the
+    # source tree, just `gh` + `jq` + `curl`. Without a git remote,
+    # though, `gh` can't infer which repo it's operating on, so we set
+    # GH_REPO at the job level. Every `gh` invocation in the steps
+    # below picks it up automatically without each step having to pass
+    # `--repo`.
+    # Job-level env so each step's `if:` can read these (a step's own `env:`
+    # block is NOT visible to that same step's `if:`). SENTRY_AUTH_TOKEN gates
+    # the moved `releases finalize` step; the POSTHOG_* pair gates the
+    # annotation step (which had the same step-`if`-can't-see-step-env bug).
+    env:
+      GH_REPO: ${{ github.repository }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
+      POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+    steps:
+      - name: Download release-notes.md artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: release-notes
+
+      # Finalize the Sentry release exactly once, here, AFTER both build jobs
+      # have uploaded all source maps + debug files for every arch. It used to
+      # live in build-macos, which finalized while the parallel Windows jobs
+      # were still uploading (and skipped finalize entirely if the mac job
+      # failed). `releases new` stays idempotent in each build job; only the
+      # finalize moved.
+      - name: Finalize Sentry release
+        if: ${{ env.SENTRY_AUTH_TOKEN != '' }}
+        env:
+          SENTRY_ORG: houston-cd
+          SENTRY_PROJECT: houston-app
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          RELEASE="houston-app@${VERSION}"
+          # This job has no source tree / node_modules, so use the standalone
+          # CLI. Pin it to the same major the app's @sentry/cli devDep tracks.
+          curl -sL https://sentry.io/get-cli/ | SENTRY_CLI_VERSION="3.5.0" bash
+          sentry-cli releases finalize "$RELEASE"
+          echo "::notice::Finalized Sentry release $RELEASE"
+
+      # Pull `latest.json` (mac entries) and all Windows `*.msi.sig`
+      # files straight from the draft release. Using assets-on-the-draft
+      # as the handoff (instead of cross-job artifacts) avoids extra
+      # upload/download steps and keeps the source of truth in one
+      # place — the draft itself. Two .sig files now ship: one per
+      # Windows arch (x64, arm64). Tauri's updater key for each entry
+      # is the platform string the in-app client polls for.
+      - name: Extend latest.json with Windows updater entries
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tmpdir=$(mktemp -d)
+          gh release download "$GITHUB_REF_NAME" \
+            --pattern 'latest.json' \
+            --pattern '*.msi.sig' \
+            --dir "$tmpdir"
+
+          if [ ! -s "$tmpdir/latest.json" ]; then
+            echo "::error::latest.json not found in draft release; build-macos must have failed to upload it"
+            exit 1
+          fi
+
+          # Walk every *.msi.sig and append a Tauri-updater entry. The
+          # MSI bundler embeds the target triple in the filename so we
+          # can derive the platform key directly. Naming examples:
+          #   Houston_0.4.9_x64_en-US.msi.sig    → windows-x86_64
+          #   Houston_0.4.9_arm64_en-US.msi.sig  → windows-aarch64
+          shopt -s nullglob
+          sigs=("$tmpdir"/*.msi.sig)
+          if [ ${#sigs[@]} -eq 0 ]; then
+            echo "::error::no *.msi.sig in draft release; build-windows must have failed to upload them"
+            exit 1
+          fi
+
+          cp "$tmpdir/latest.json" "$tmpdir/latest.next.json"
+          for SIG_FILE in "${sigs[@]}"; do
+            MSI_NAME=$(basename "$SIG_FILE" .sig)
+            MSI_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$MSI_NAME"
+            MSI_SIG=$(cat "$SIG_FILE")
+
+            case "$MSI_NAME" in
+              *_arm64*|*_aarch64*) PLATFORM="windows-aarch64" ;;
+              *)                   PLATFORM="windows-x86_64"  ;;
+            esac
+
+            echo "  + $PLATFORM ← $MSI_NAME"
+            jq \
+              --arg sig "$MSI_SIG" \
+              --arg url "$MSI_URL" \
+              --arg plat "$PLATFORM" \
+              '.platforms[$plat] = {signature: $sig, url: $url}' \
+              "$tmpdir/latest.next.json" > "$tmpdir/latest.merged.json"
+            mv "$tmpdir/latest.merged.json" "$tmpdir/latest.next.json"
+          done
+
+          echo "Updated latest.json:"
+          cat "$tmpdir/latest.next.json"
+
+          mv "$tmpdir/latest.next.json" "$tmpdir/latest.json"
+          gh release upload "$GITHUB_REF_NAME" "$tmpdir/latest.json" --clobber
+          echo "::notice::latest.json now advertises macOS + Windows (x64 + arm64) for the in-app updater"
+
+      # Drop a PostHog annotation marking this release. Every PostHog
+      # insight chart shows a vertical line at this timestamp, so any
+      # spike or drop in metrics is instantly correlatable to "did we
+      # ship something?". Skipped silently when the personal API key or
+      # project ID aren't set (forks, personal builds).
+      - name: Annotate this release in PostHog
+        if: ${{ env.POSTHOG_PERSONAL_API_KEY != '' && env.POSTHOG_PROJECT_ID != '' }}
+        env:
+          # POSTHOG_PERSONAL_API_KEY + POSTHOG_PROJECT_ID come from the
+          # job-level env so the `if:` above can see them. Only POSTHOG_HOST
+          # (not referenced by the gate) stays step-local.
+          POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          HOST="${POSTHOG_HOST:-https://us.posthog.com}"
+          # Strip the i. ingestion subdomain if someone configured POSTHOG_HOST
+          # for client ingest (us.i.posthog.com). The annotation REST API
+          # lives on the regular dashboard host, not the ingest endpoint.
+          HOST="${HOST/us.i.posthog.com/us.posthog.com}"
+          HOST="${HOST/eu.i.posthog.com/eu.posthog.com}"
+
+          NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          jq -n \
+            --arg content "Houston v$VERSION shipped" \
+            --arg date_marker "$NOW" \
+            '{ content: $content, date_marker: $date_marker, scope: "project" }' \
+            > posthog-annotation.json
+
+          curl --silent --show-error --fail \
+            -X POST "$HOST/api/projects/$POSTHOG_PROJECT_ID/annotations/" \
+            -H "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY" \
+            -H "Content-Type: application/json" \
+            --data @posthog-annotation.json
+          echo "::notice::PostHog annotation created for Houston v$VERSION"
+
+      # Pings the team Slack channel so anyone can grab the DMG and try
+      # the build before we publish. No-ops when
+      # SLACK_RELEASE_WEBHOOK_URL is unset, so forks and personal builds
+      # stay quiet.
+      - name: Notify Slack of new draft release
+        if: success()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_RELEASE_WEBHOOK_URL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_RELEASE_WEBHOOK_URL not set; skipping Slack notification."
+            exit 0
+          fi
+
+          VERSION="${GITHUB_REF_NAME#v}"
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${GITHUB_REF_NAME}"
+          DMG_URL=$(gh release view "$GITHUB_REF_NAME" --json assets --jq '[.assets[] | select(.name | endswith(".dmg")) | .url] | first // empty')
+
+          # First ~700 chars of the release-notes body, skipping the leading "## Houston X.Y.Z" header line.
+          NOTES_PREVIEW=$(tail -n +2 release-notes.md | head -c 700)
+          if [ "$(wc -c < release-notes.md)" -gt 700 ]; then
+            NOTES_PREVIEW="${NOTES_PREVIEW}…"
+          fi
+
+          # Build action buttons: always include "View on GitHub", add "Download DMG" only when we found one.
+          if [ -n "$DMG_URL" ]; then
+            ACTIONS=$(jq -n --arg dmg "$DMG_URL" --arg url "$RELEASE_URL" '[
+              { type: "button", text: { type: "plain_text", text: "Download DMG", emoji: true }, url: $dmg, style: "primary" },
+              { type: "button", text: { type: "plain_text", text: "View on GitHub", emoji: true }, url: $url }
+            ]')
+          else
+            ACTIONS=$(jq -n --arg url "$RELEASE_URL" '[
+              { type: "button", text: { type: "plain_text", text: "View on GitHub", emoji: true }, url: $url }
+            ]')
+          fi
+
+          jq -n \
+            --arg ver "$VERSION" \
+            --arg notes "$NOTES_PREVIEW" \
+            --argjson actions "$ACTIONS" \
+            '{
+              text: ("Houston v" + $ver + " is ready to test"),
+              blocks: [
+                { type: "header", text: { type: "plain_text", text: ("Houston v" + $ver + " is ready to test"), emoji: true } },
+                { type: "context", elements: [ { type: "mrkdwn", text: "Draft release · grab the DMG and try it before we publish" } ] },
+                { type: "section", text: { type: "mrkdwn", text: $notes } },
+                { type: "actions", elements: $actions }
+              ]
+            }' | curl --silent --show-error --fail \
+              -X POST \
+              -H "Content-Type: application/json" \
+              --data @- \
+              "$SLACK_WEBHOOK_URL"

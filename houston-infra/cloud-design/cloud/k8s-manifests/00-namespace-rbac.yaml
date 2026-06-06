@@ -1,0 +1,18 @@
+# 0. Tenant and ServiceAccount Definition (Segment 1: Zero-Trust RBAC)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tenant-a-workspace
+  labels:
+    houston/tenant: "tenant-a"
+    # Force K8s to reject pods that don't meet extreme security standards
+    pod-security.kubernetes.io/enforce: "restricted"
+
+---
+# Isolated ServiceAccount: No token to access the Kubernetes API
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: houston-agent-sa
+  namespace: tenant-a-workspace
+automountServiceAccountToken: false

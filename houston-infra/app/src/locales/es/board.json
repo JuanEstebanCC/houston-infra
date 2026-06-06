@@ -1,0 +1,103 @@
+{
+  "cardActions": {
+    "run": "Ejecutar",
+    "openTerminal": "Abrir la terminal en el worktree",
+    "approve": "Mover a Listo",
+    "approveTooltip": "Mover a Listo",
+    "renameTooltip": "Cambiar título",
+    "deleteTooltip": "Eliminar",
+    "select": "Seleccionar misión",
+    "openTerminalFailed": "No se pudo abrir la terminal: {{error}}"
+  },
+  "deleteCard": {
+    "titleWithName": "¿Eliminar \"{{name}}\"?",
+    "description": "Este elemento y su historial se eliminarán de forma permanente."
+  },
+  "tags": {
+    "routine": "Rutina"
+  },
+  "empty": {
+    "title": "Aún no hay conversaciones",
+    "description": "Inicia una conversación nueva para delegarle trabajo a un agente.",
+    "newMission": "Nueva misión"
+  },
+  "search": {
+    "placeholder": "Buscar misiones",
+    "placeholderShort": "Buscar...",
+    "clear": "Borrar búsqueda",
+    "clearCta": "Borrar búsqueda",
+    "searchingText": "Buscando en el texto de las misiones",
+    "searchingTitle": "Buscando en el texto de las misiones",
+    "searchingDescription": "Revisando mensajes anteriores.",
+    "emptyTitle": "No hay misiones que coincidan",
+    "emptyDescription": "Prueba otra búsqueda o borra la actual.",
+    "historyErrorTitle": "No se pudieron buscar todas las misiones",
+    "historyErrorDescription": "No se pudo cargar parte del texto de misiones anteriores."
+  },
+  "toasts": {
+    "attached": "Adjuntó: {{names}}"
+  },
+  "attachmentMessage": {
+    "count_one": "1 archivo adjunto",
+    "count_other": "{{count}} archivos adjuntos"
+  },
+  "chatEmpty": {
+    "heading": "¿En qué te ayudo?",
+    "subheading": "Toca un skill para empezar, o escribe lo que necesitas abajo.",
+    "seeMore_one": "Ver {{count}} skill más",
+    "seeMore_other": "Ver {{count}} skills más"
+  },
+  "composerSkill": {
+    "browse": "Skills"
+  },
+  "composerAttach": {
+    "addFiles": "Agregar archivos"
+  },
+  "selectedSkill": {
+    "cancel": "Cerrar"
+  },
+  "bulk": {
+    "selected_one": "{{count}} seleccionada",
+    "selected_other": "{{count}} seleccionadas",
+    "moveTo": "Mover a",
+    "selectAll": "Seleccionar todo",
+    "archive": "Archivar",
+    "delete": "Eliminar",
+    "clear": "Quitar selección",
+    "cancel": "Cancelar",
+    "error": "No se pudieron actualizar las misiones seleccionadas: {{error}}",
+    "confirmMove": {
+      "title": "¿Mover misiones?",
+      "description_one": "¿Mover {{count}} misión a {{target}}?",
+      "description_other": "¿Mover {{count}} misiones a {{target}}?",
+      "action": "Mover"
+    },
+    "confirmArchive": {
+      "title": "¿Archivar misiones?",
+      "description_one": "¿Archivar {{count}} misión? Puedes reabrirla desde la pestaña Archivadas.",
+      "description_other": "¿Archivar {{count}} misiones? Puedes reabrirlas desde la pestaña Archivadas.",
+      "action": "Archivar"
+    },
+    "confirmDelete": {
+      "title": "¿Eliminar misiones?",
+      "description_one": "¿Eliminar de forma permanente {{count}} misión y su historial?",
+      "description_other": "¿Eliminar de forma permanente {{count}} misiones y su historial?",
+      "action": "Eliminar"
+    }
+  },
+  "doneArchive": {
+    "tooltip": "Archivar todo lo Listo",
+    "confirmTitle": "¿Archivar las misiones Listas?",
+    "confirmDescription_one": "¿Archivar {{count}} misión en Listo? Puedes reabrirla desde la pestaña Archivadas.",
+    "confirmDescription_other": "¿Archivar {{count}} misiones en Listo? Puedes reabrirlas desde la pestaña Archivadas.",
+    "confirmAction": "Archivar todo"
+  },
+  "archived": {
+    "emptyTitle": "No hay misiones archivadas",
+    "emptyDescription": "Las misiones archivadas aparecen aquí. Responde a una para reactivarla.",
+    "searchPlaceholder": "Buscar misiones archivadas"
+  },
+  "dnd": {
+    "moveError": "No se pudo mover la misión: {{error}}"
+  }
+}

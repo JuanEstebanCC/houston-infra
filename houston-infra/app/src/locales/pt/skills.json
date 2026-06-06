@@ -1,0 +1,90 @@
+{
+  "page": {
+    "title": "Skills",
+    "description": "Procedimentos reutilizáveis que este agente pode executar."
+  },
+  "grid": {
+    "loading": "Carregando skills...",
+    "emptyTitle": "Sem skills instalados",
+    "emptyDescription": "Skills são procedimentos reutilizáveis que seu agente pode executar.",
+    "addSkill": "Adicionar skill",
+    "descriptionShort": "Procedimentos reutilizáveis que seu agente pode executar."
+  },
+  "addDialog": {
+    "title": "Adicionar skills",
+    "description": "Instale procedimentos reutilizáveis para seu agente.",
+    "storeTab": "Skills.sh",
+    "repoTab": "GitHub",
+    "scratchTab": "Do zero",
+    "store": {
+      "searchPlaceholder": "Busque entre mais de 90 mil skills...",
+      "popularHeading": "Populares no Skills.sh",
+      "alreadyInstalledHint_one": "1 skill já está instalado e aparece abaixo.",
+      "alreadyInstalledHint_other": "{{count}} skills já estão instalados e aparecem abaixo.",
+      "noResults": "Nenhum skill encontrado para \"{{query}}\"",
+      "minQuery": "Digite pelo menos 2 caracteres para buscar",
+      "searchUnavailable": "A busca de skills está com problemas. Aguarde um momento e tente de novo.",
+      "searchRateLimited": "O Skills.sh está ocupado agora. Aguarde um momento e tente de novo.",
+      "searchOffline": "Não conseguimos acessar o Skills.sh. Verifique sua conexão com a internet e tente de novo.",
+      "searchGeneric": "A busca teve um problema. Aguarde um momento e tente de novo.",
+      "loadingPopular": "Carregando skills populares...",
+      "popularUnavailable": "Não foi possível carregar sugestões. Busque o que você precisa acima.",
+      "retry": "Tentar de novo",
+      "typeToSearch": "Digite para buscar skills",
+      "installCount_one": "{{formatted}} instalação",
+      "installCount_other": "{{formatted}} instalações",
+      "installSkill": "Instalar {{name}}",
+      "installedSkill": "{{name}} instalado",
+      "alreadyInstalledBadge": "Já instalado",
+      "installedJustNow": "Instalado",
+      "installFailedAlready": "Já instalado",
+      "installFailedRepoMissing": "O autor removeu este skill.",
+      "installFailedMalformed": "O arquivo deste skill está com problema. Tente outro.",
+      "installFailedRateLimited": "O Skills.sh está ocupado. Aguarde um momento e clique de novo.",
+      "installFailedOffline": "Não foi possível conectar. Verifique sua internet e tente de novo.",
+      "installFailedGeneric": "A instalação falhou. Tente de novo em um momento.",
+      "installRetryAria": "Tentar instalar {{name}} de novo"
+    },
+    "repo": {
+      "sourcePlaceholder": "owner/repo",
+      "findSkills": "Buscar skills",
+      "installSelected": "Instalar {{count}}",
+      "skillsFound_one": "1 skill encontrado",
+      "skillsFound_other": "{{count}} skills encontrados",
+      "selectAll": "Selecionar tudo",
+      "deselectAll": "Desmarcar tudo",
+      "inputHint": "Insira um repositório público do GitHub no formato owner/repo",
+      "installedSummary_one": "1 skill instalado: {{names}}",
+      "installedSummary_other": "{{count}} skills instalados: {{names}}",
+      "installAnotherRepo": "Instalar de outro repositório"
+    },
+    "scratch": {
+      "titleLabel": "O que essa skill deve fazer?",
+      "titlePlaceholder": "Redigir um contrato",
+      "titleHint": "Use a frase que você diria no chat. Houston transforma em um slug.",
+      "slugPreviewPrefix": "Salvo como",
+      "descriptionLabel": "Descrição em uma linha",
+      "descriptionPlaceholder": "Cria um rascunho de contrato pronto para você revisar e assinar.",
+      "descriptionHint": "Aparece no card. Diga o que o usuário ganha, não como funciona.",
+      "bodyLabel": "Instruções para o agente",
+      "bodyPlaceholder": "## Procedimento\n\n1. Pergunte ao usuário que tipo de contrato.\n2. Pegue a última versão no Drive.\n3. Preencha e compartilhe para revisão.\n",
+      "bodyHint": "Markdown. O agente lê quando a skill roda.",
+      "submit": "Criar skill",
+      "submitting": "Criando...",
+      "errorTitleRequired": "Dê um título à sua skill.",
+      "errorBodyRequired": "Adicione pelo menos um passo.",
+      "errorSlugTaken": "Já existe uma skill com esse nome."
+    }
+  },
+  "detail": {
+    "notFound": "Skill não encontrado",
+    "backAria": "Voltar para skills",
+    "moreOptions": "Mais opções",
+    "saveChanges": "Salvar alterações",
+    "savingChanges": "Salvando...",
+    "delete": "Excluir skill",
+    "deleteTitle": "Excluir \"{{name}}\"?",
+    "deleteDescription": "Isso remove o skill do seu agente. Você pode reinstalar depois.",
+    "instructionsPlaceholder": "Instruções para este skill..."
+  }
+}

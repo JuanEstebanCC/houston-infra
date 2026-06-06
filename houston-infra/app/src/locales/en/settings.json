@@ -1,0 +1,114 @@
+{
+  "title": "Settings",
+  "nav": {
+    "account": "Account",
+    "workspace": "Workspace",
+    "workspaceContext": "Workspace context",
+    "userContext": "User context",
+    "provider": "AI provider",
+    "phone": "Connect phone",
+    "shortcuts": "Keyboard shortcuts",
+    "reportBug": "Report bug"
+  },
+  "account": {
+    "title": "Account",
+    "signOut": "Sign out",
+    "fallbackName": "Signed in"
+  },
+  "workspace": {
+    "title": "Workspace",
+    "nameLabel": "Name"
+  },
+  "workspaceContext": {
+    "emptyTitle": "Tell every agent about this workspace",
+    "emptyDescription": "The company, the product, the customers. Loaded into every new chat in this workspace.",
+    "writeButton": "Write workspace context",
+    "helper": "Shared by every agent in this workspace. Loaded into each new chat. Agents can update this when you tell them something new.",
+    "placeholder": "e.g. Acme Corp, B2B fintech, Series A. Customers are CFOs at mid-market companies.",
+    "saving": "Saving…",
+    "saved": "Saved"
+  },
+  "userContext": {
+    "emptyTitle": "Tell every agent about you",
+    "emptyDescription": "Your role, what you care about, how you like to work. Loaded into every new chat in this workspace.",
+    "writeButton": "Write user context",
+    "helper": "Loaded into each new chat in this workspace. Agents can update this when you tell them something new.",
+    "placeholder": "e.g. I'm Juan, head of sales. I care about pipeline velocity and prefer short replies.",
+    "saving": "Saving…",
+    "saved": "Saved"
+  },
+  "provider": {
+    "title": "AI provider",
+    "description": "Houston uses <emph>your own</emph> subscription. We never see your credentials."
+  },
+  "connectPhone": {
+    "title": "Connect phone",
+    "description": "Scan this code to manage Houston from your phone. The same code keeps working as long as this computer is on and Houston is open.",
+    "loading": "Getting ready to connect your phone…",
+    "connectingStatus": "Connecting to the phone service. This usually takes a few seconds.",
+    "keepComputerAwake": "Keep this computer awake while you use Houston on your phone.",
+    "alwaysOnHint": "For 24/7 access, <emph>Always On</emph> runs Houston on our servers.",
+    "errors": {
+      "noInternet": "Houston needs an internet connection the first time you open the app. Please connect and reopen Houston to enable phone pairing.",
+      "generic": "Couldn't prepare a pairing code. Please try again."
+    },
+    "reset": {
+      "title": "Disconnect all phones",
+      "description": "Resets the QR and signs out every phone currently connected to this computer.",
+      "button": "Disconnect all phones",
+      "confirmTitle": "Disconnect all phones?",
+      "confirmDescription": "This resets the QR and signs out every phone currently connected to this computer. Scan the new QR to connect again.",
+      "confirmLabel": "Disconnect",
+      "toast": "Phone access reset"
+    }
+  },
+  "timezone": {
+    "title": "Timezone",
+    "description": "Used when your routines fire, 9am means 9am in this zone.",
+    "label": "IANA zone",
+    "placeholder": "e.g. America/Bogota",
+    "useDetected": "Use detected ({{zone}})"
+  },
+  "appearance": {
+    "title": "Appearance",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "dangerZone": {
+    "title": "Danger zone",
+    "description": "Permanently delete this workspace and all its agents.",
+    "deleteButton": "Delete workspace",
+    "createAnotherFirst": "Create another workspace first before deleting this one.",
+    "confirmTitle": "Delete \"{{name}}\"?",
+    "confirmDescription": "This will permanently delete this workspace and all its agents. This cannot be undone.",
+    "confirmLabel": "Delete"
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "description": "Run Houston without touching the mouse."
+  },
+  "reportBug": {
+    "title": "Report bug",
+    "intro": "Tell us what went wrong. We'll send your message along with the logs from your last activity so we can see what happened.",
+    "timingTip": "We only get the most recent activity, so send the report as soon as the bug happens for the most useful info.",
+    "toastEquivalence": "This is the same as tapping Report bug on the red error notification, you don't need to send both.",
+    "label": "What happened?",
+    "placeholder": "Describe the bug. What were you doing, what did you expect, what happened instead?",
+    "send": "Send bug report",
+    "sending": "Sending…",
+    "toasts": {
+      "successTitle": "Roger that, report received.",
+      "successBody": "Mission control is on it, deploying a fix.",
+      "successBodyWithId": "Mission control is on it, deploying a fix. Reference: {{id}}",
+      "errorTitle": "Couldn't send report"
+    }
+  },
+  "version": "Version {{version}}",
+  "toasts": {
+    "workspaceRenamed": "Workspace renamed",
+    "providerSwitched": "Switched to {{provider}} ({{model}})",
+    "timezoneSet": "Timezone set to {{zone}}",
+    "versionCopied": "Version copied",
+    "versionCopyFailed": "Couldn't copy version"
+  }
+}

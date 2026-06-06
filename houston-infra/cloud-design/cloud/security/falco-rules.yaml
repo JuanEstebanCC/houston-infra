@@ -1,0 +1,25 @@
+# Falco Rules (Segment 3: Observability and Malice Detection)
+# Blocks Prompt Injection attempts trying to execute unauthorized commands.
+
+- rule: Houston_Engine_Unauthorized_Process_Spawn
+  desc: Detects if the Houston engine attempts to execute anything other than the allowed CLIs (claude, codex, gemini).
+  condition: >
+    spawned_process and
+    proc.pname == "houston-engine" and
+    not (proc.name in ("claude", "codex", "gemini-cli"))
+  output: >
+    CRITICAL: Houston engine attempted to execute an unauthorized process (user=%user.name pod=%k8s.pod.name command=%proc.cmdline)
+  priority: CRITICAL
+  tags: [container, mitre_execution, zero_trust]
+
+- rule: Houston_Engine_Write_Below_Root
+  desc: The container must be ReadOnly. Detects write attempts outside of /data.
+  condition: >
+    open_write and
+    container and
+    proc.pname == "houston-engine" and
+    not fd.name startswith "/data/"
+  output: >
+    WARNING: Attempted to write outside the ephemeral volume (pod=%k8s.pod.name file=%fd.name)
+  priority: WARNING
+  tags: [container, filesystem]

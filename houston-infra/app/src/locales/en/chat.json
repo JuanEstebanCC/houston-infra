@@ -1,0 +1,101 @@
+{
+  "composer": {
+    "placeholder": "Ask anything...",
+    "fileAlreadyInChat": "File already in chat",
+    "dropTitle": "Drop your files",
+    "dropDescription": "Drop them here to add them to the conversation",
+    "imagePasteUnavailable": "Couldn't read the pasted image. Try dragging the file in instead.",
+    "addFiles": "Add files"
+  },
+  "queue": {
+    "title": "Queued",
+    "remove": "Remove queued message",
+    "attachmentsOnly": "Attachments",
+    "attached": "Attached: {{names}}"
+  },
+  "attachmentMessage": {
+    "count_one": "1 file attached",
+    "count_other": "{{count}} files attached"
+  },
+  "empty": {
+    "title": "Start a conversation",
+    "description": "Type a message to talk to your assistant."
+  },
+  "errors": {
+    "sessionStart": "Failed to start session: {{error}}",
+    "modelPersistFailed": "Failed to save model preference"
+  },
+  "toolRuntimeError": {
+    "retryPrompt": "Try again."
+  },
+  "attachmentIssues": {
+    "title": "Some files were not attached",
+    "description": "Houston kept your prompt and the files it can use.",
+    "close": "Got it",
+    "reasons": {
+      "blockedType": "This file type cannot be used here.",
+      "blockedTypeWithExtension": ".{{extension}} files cannot be used here.",
+      "tooLarge": "This file is larger than {{maxSize}}."
+    }
+  },
+  "composio": {
+    "integration": "App integration",
+    "alreadyConnected": "Already connected",
+    "connected": "Connected",
+    "connecting": "Connecting...",
+    "connect": "Connect",
+    "waitingToConnect": "Waiting for you to connect",
+    "reconnect": "Reconnect",
+    "verifiedToast": "{{name}} is connected",
+    "connectedFollowup": "I've connected {{name}}. Please continue.",
+    "followupFailed": "Couldn't tell the assistant that {{name}} is connected"
+  },
+  "composioSignin": {
+    "appName": "Integrations provider",
+    "description": "Sign in to let your assistant use your apps. Default provider: Composio.",
+    "alreadySignedIn": "You're signed in to your integrations provider",
+    "signedIn": "Signed in",
+    "signIn": "Sign in"
+  },
+  "modelSelector": {
+    "selectModel": "Select model",
+    "model": "Model",
+    "notConnected": "Not connected",
+    "checking": "Checking...",
+    "effort": "Reasoning effort",
+    "effortLevels": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "xhigh": "Extra high",
+      "max": "Max"
+    },
+    "effortDescriptions": {
+      "low": "Fastest, lightest thinking.",
+      "medium": "Balanced speed and depth.",
+      "high": "Deeper thinking for harder work.",
+      "xhigh": "Best for complex, agentic tasks.",
+      "max": "Deepest thinking, no token limit."
+    }
+  },
+  "reasoning": {
+    "thinking": "Thinking...",
+    "thoughtFor": "Thought for {{count}} seconds",
+    "thoughtForFew": "Thought for a few seconds"
+  },
+  "process": {
+    "active": "Mission in progress...",
+    "complete": "Mission log"
+  },
+  "summary": {
+    "updatesMade": "Updates made",
+    "newFiles_one": "1 new file",
+    "newFiles_other": "{{count}} new files",
+    "instructionsUpdated": "Instructions updated",
+    "skillsUpdated": "Skills updated",
+    "learningsUpdated": "Learnings updated"
+  },
+  "filesUpdated_one": "1 file updated",
+  "filesUpdated_other": "{{count}} files updated",
+  "contextCompacted": "Earlier conversation summarized so the chat can keep going"
+}

@@ -1,0 +1,101 @@
+{
+  "composer": {
+    "placeholder": "Pergunte qualquer coisa...",
+    "fileAlreadyInChat": "Arquivo já está no chat",
+    "dropTitle": "Solte seus arquivos",
+    "dropDescription": "Solte-os aqui para adicioná-los à conversa",
+    "imagePasteUnavailable": "Não foi possível ler a imagem colada. Tente arrastar o arquivo.",
+    "addFiles": "Adicionar arquivos"
+  },
+  "queue": {
+    "title": "Na fila",
+    "remove": "Remover mensagem da fila",
+    "attachmentsOnly": "Anexos",
+    "attached": "Anexo: {{names}}"
+  },
+  "attachmentMessage": {
+    "count_one": "1 arquivo anexado",
+    "count_other": "{{count}} arquivos anexados"
+  },
+  "empty": {
+    "title": "Comece uma conversa",
+    "description": "Digite uma mensagem para falar com seu assistente."
+  },
+  "errors": {
+    "sessionStart": "Não foi possível iniciar a sessão: {{error}}",
+    "modelPersistFailed": "Não foi possível salvar a preferência de modelo"
+  },
+  "toolRuntimeError": {
+    "retryPrompt": "Tente de novo."
+  },
+  "attachmentIssues": {
+    "title": "Alguns arquivos não foram anexados",
+    "description": "Houston manteve sua mensagem e os arquivos que pode usar.",
+    "close": "Entendi",
+    "reasons": {
+      "blockedType": "Este tipo de arquivo não pode ser usado aqui.",
+      "blockedTypeWithExtension": "Arquivos .{{extension}} não podem ser usados aqui.",
+      "tooLarge": "Este arquivo é maior que {{maxSize}}."
+    }
+  },
+  "composio": {
+    "integration": "Integração de app",
+    "alreadyConnected": "Já conectado",
+    "connected": "Conectado",
+    "connecting": "Conectando...",
+    "connect": "Conectar",
+    "waitingToConnect": "Aguardando você conectar",
+    "reconnect": "Reconectar",
+    "verifiedToast": "{{name}} está conectado",
+    "connectedFollowup": "Já conectei {{name}}. Pode continuar.",
+    "followupFailed": "Não consegui avisar o assistente que {{name}} está conectado"
+  },
+  "composioSignin": {
+    "appName": "Provedor de integrações",
+    "description": "Entre para seu assistente usar seus apps. Provedor padrão: Composio.",
+    "alreadySignedIn": "Você já está conectado ao seu provedor de integrações",
+    "signedIn": "Conectado",
+    "signIn": "Entrar"
+  },
+  "modelSelector": {
+    "selectModel": "Escolha um modelo",
+    "model": "Modelo",
+    "notConnected": "Sem conexão",
+    "checking": "Verificando...",
+    "effort": "Esforço de raciocínio",
+    "effortLevels": {
+      "low": "Baixo",
+      "medium": "Médio",
+      "high": "Alto",
+      "xhigh": "Muito alto",
+      "max": "Máximo"
+    },
+    "effortDescriptions": {
+      "low": "Mais rápido, menos análise.",
+      "medium": "Equilíbrio entre velocidade e profundidade.",
+      "high": "Análise mais profunda para tarefas difíceis.",
+      "xhigh": "Ideal para tarefas complexas.",
+      "max": "Análise máxima, sem limite de tokens."
+    }
+  },
+  "reasoning": {
+    "thinking": "Pensando...",
+    "thoughtFor": "Pensou por {{count}} segundos",
+    "thoughtForFew": "Pensou por alguns segundos"
+  },
+  "process": {
+    "active": "Missão em andamento...",
+    "complete": "Registro da missão"
+  },
+  "summary": {
+    "updatesMade": "Atualizações feitas",
+    "newFiles_one": "1 arquivo novo",
+    "newFiles_other": "{{count}} arquivos novos",
+    "instructionsUpdated": "Instruções atualizadas",
+    "skillsUpdated": "Skills atualizados",
+    "learningsUpdated": "Aprendizados atualizados"
+  },
+  "filesUpdated_one": "1 arquivo atualizado",
+  "filesUpdated_other": "{{count}} arquivos atualizados",
+  "contextCompacted": "Resumimos a conversa anterior para o chat poder continuar"
+}

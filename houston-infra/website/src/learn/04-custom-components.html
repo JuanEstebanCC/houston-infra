@@ -1,0 +1,114 @@
+---
+activeChapter: "04"
+rootPath: "../"
+learnPath: "index.html"
+visionPath: "../vision/index.html"
+permalink: "learn/04-custom-components.html"
+---
+{% extends "base.njk" %}
+{% block title %}The agent shell — Learn Houston{% endblock %}
+{% block meta %}
+<meta name="description" content="Every Houston agent renders the same five tabs: Activity, Routines, Files, Job Description, and Integrations. Here is what each one is for.">
+{% endblock %}
+{% block stylesheets %}
+<link rel="stylesheet" href="style.css?v=3">
+{% endblock %}
+{% block body %}
+    {% include "nav-docs.njk" %}
+
+    <div class="layout">
+      {% include "sidebar-learn.njk" %}
+
+      <main class="content">
+        <div class="content-label">Chapter 04</div>
+        <h1>The agent shell.</h1>
+        <p class="lead">
+          Every agent in Houston renders the same five tabs. The shape
+          is fixed on purpose, so users learn one layout and reuse it
+          across every agent they install.
+        </p>
+
+        <div class="toc">
+          <div class="toc-label">On this page</div>
+          <ol>
+            <li><a href="#tabs">The five tabs</a></li>
+            <li><a href="#why-fixed">Why the layout is fixed</a></li>
+            <li><a href="#integrations">Two ways to reach Integrations</a></li>
+          </ol>
+        </div>
+
+        <h2 id="tabs">The five tabs</h2>
+        <p>
+          From left to right:
+        </p>
+        <ul>
+          <li>
+            <strong>Activity.</strong> A kanban board of conversations.
+            Each card is one mission. Clicking a card opens the chat.
+            This is the default tab when an agent opens.
+          </li>
+          <li>
+            <strong>Routines.</strong> Scheduled jobs the agent runs on
+            its own, like "every Monday at 8am, summarize last week's
+            inbox." Houston runs the schedule, the agent runs the work.
+          </li>
+          <li>
+            <strong>Files.</strong> Browse anything the agent has read
+            or written inside its working directory. Drafts, notes,
+            structured data, exports.
+          </li>
+          <li>
+            <strong>Job Description.</strong> The agent's
+            <code>CLAUDE.md</code>. This is what the agent reads at the
+            start of every conversation to know who it is and how to
+            behave. Edit it whenever the agent's role changes.
+          </li>
+          <li>
+            <strong>Integrations.</strong> Connect Gmail, Calendar,
+            Slack, Notion, and the rest. Houston supports 1000+ tools
+            through Composio. Connections are workspace-wide, so every
+            agent in the workspace sees the same accounts.
+          </li>
+        </ul>
+
+        <h2 id="why-fixed">Why the layout is fixed</h2>
+        <p>
+          Earlier versions of Houston let every agent declare its own
+          tab list in <code>houston.json</code>, and an experimental
+          path let agents ship a <code>bundle.js</code> with custom
+          React components for their own tabs. In practice nobody used
+          the custom-component path, and the per-agent tab list mostly
+          caused drift, where an old installed agent kept showing tabs
+          a new version of the agent no longer declared.
+        </p>
+        <p>
+          The fixed shell is simpler for users (one layout to learn) and
+          simpler for agent authors (you write a manifest and a
+          <code>CLAUDE.md</code>, nothing else). The list of tabs lives
+          in <code>app/src/agents/standard-tabs.ts</code> if you want to
+          read it in code.
+        </p>
+
+        <h2 id="integrations">Two ways to reach Integrations</h2>
+        <p>
+          The per-agent <strong>Integrations</strong> tab and the
+          sidebar <strong>Connections</strong> entry render the same
+          surface. The two entry points exist because users reach for
+          them at different moments: from inside an agent (the tab), or
+          when setting Houston up as a whole (the sidebar). Connections
+          are workspace-wide either way.
+        </p>
+
+        <div class="pager">
+          <a href="03-build-your-first-agent.html">
+            <div class="pager-label">← Previous</div>
+            <div class="pager-title">Build your first agent</div>
+          </a>
+          <a href="05-workspace-templates.html" class="next">
+            <div class="pager-label">Next →</div>
+            <div class="pager-title">Workspace templates</div>
+          </a>
+        </div>
+      </main>
+    </div>
+{% endblock %}

@@ -1,0 +1,85 @@
+# 2. Engine Deployment (Segments 1 & 2: Isolation and S3 Hydration)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: houston-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: houston-engine
+  template:
+    metadata:
+      labels:
+        app: houston-engine
+    spec:
+      automountServiceAccountToken: false
+
+      # Segment 2: State Hydration (State Bifurcation)
+      initContainers:
+        - name: state-hydrator
+          image: amazon/aws-cli
+          command:
+            - sh
+            - -c
+            - "aws s3 cp s3://houston-states/$TENANT_ID/state.tar.gz.enc /tmp/ || true && \
+              kms-decrypt /tmp/state.tar.gz.enc /data/state.tar.gz || true && \
+              tar -xzf /data/state.tar.gz -C /data/ || true"
+          volumeMounts:
+            - name: agent-data
+              mountPath: /data
+
+      containers:
+        - name: engine
+          image: houston/engine:local
+          ports:
+            - containerPort: 7777
+          env:
+            - name: HOUSTON_BIND
+              value: "0.0.0.0:7777"
+            - name: HOUSTON_BIND_ALL
+              value: "1"
+            - name: HOUSTON_HOME
+              value: "/data/.houston"
+            # Segment 2: Macro-State externalized to LibSQL/Turso
+            - name: HOUSTON_DATABASE_URL
+              value: "libsql://houston-tenant-a.turso.io"
+            - name: HOUSTON_DATABASE_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: vault-secrets
+                  key: turso-token
+            # Dynamic token for WebSocket connection
+            - name: HOUSTON_ENGINE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: vault-secrets
+                  key: engine-token
+
+          # Segment 1: Extreme Isolation
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop: ["ALL"]
+
+          volumeMounts:
+            - name: agent-data
+              mountPath: /data
+            # Vault CSI Injection (MCP Secrets in RAM)
+            - name: vault-secrets
+              mountPath: /data/secrets
+              readOnly: true
+
+      volumes:
+        - name: agent-data
+          emptyDir:
+            sizeLimit: 100Mi
+        - name: vault-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: "vault-houston-tenant"

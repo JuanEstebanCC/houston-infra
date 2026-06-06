@@ -1,0 +1,79 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nickelpack/tauri/v2/crates/tauri-config-schema/schema.json",
+  "productName": "Houston",
+  "identifier": "com.houston.app",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build && node scripts/sentry-inject.mjs"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "title": "Houston",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 800,
+        "minHeight": 600,
+        "decorations": true,
+        "transparent": false,
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": null,
+      "capabilities": ["default"]
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/gethouston/houston/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJDQTdCMzc1MURERDRFQkQKUldTOVR0MGRkYk9uTEE4SUNnNElWZzVEN3QvcFQzczl6Y2NTMUpLSXJYZkxyK2g5azk4UHpRdmcK"
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": ["houston"]
+      }
+    }
+  },
+  "bundle": {
+    "createUpdaterArtifacts": true,
+    "active": true,
+    "targets": ["app", "dmg", "msi"],
+    "externalBin": ["binaries/houston-engine"],
+    "resources": {
+      "resources/bin": "bin",
+      "../../store": "store"
+    },
+    "macOS": {
+      "signingIdentity": "-",
+      "entitlements": "entitlements.plist",
+      "minimumSystemVersion": "10.15",
+      "dmg": {
+        "background": "assets/dmg-background.tiff",
+        "windowSize": { "width": 608, "height": 480 },
+        "appPosition": { "x": 145, "y": 258 },
+        "applicationFolderPosition": { "x": 465, "y": 258 }
+      }
+    },
+    "windows": {
+      "wix": {
+        "language": ["en-US"]
+      },
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      }
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

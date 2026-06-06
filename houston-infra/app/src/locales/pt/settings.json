@@ -1,0 +1,114 @@
+{
+  "title": "Configurações",
+  "nav": {
+    "account": "Conta",
+    "workspace": "Espaço de trabalho",
+    "workspaceContext": "Contexto do espaço",
+    "userContext": "Contexto do usuário",
+    "provider": "Provedor de IA",
+    "phone": "Conectar celular",
+    "shortcuts": "Atalhos de teclado",
+    "reportBug": "Reportar bug"
+  },
+  "account": {
+    "title": "Conta",
+    "signOut": "Sair",
+    "fallbackName": "Sessão iniciada"
+  },
+  "workspace": {
+    "title": "Espaço de trabalho",
+    "nameLabel": "Nome"
+  },
+  "workspaceContext": {
+    "emptyTitle": "Conte para todo agente sobre este espaço",
+    "emptyDescription": "A empresa, o produto, os clientes. Entra em cada conversa nova deste espaço.",
+    "writeButton": "Escrever contexto do espaço",
+    "helper": "Compartilhado por todos os agentes deste espaço. Entra em cada conversa nova. Os agentes podem atualizar quando você contar algo novo.",
+    "placeholder": "ex. Acme Corp, fintech B2B, Série A. Os clientes são CFOs de empresas médias.",
+    "saving": "Salvando…",
+    "saved": "Salvo"
+  },
+  "userContext": {
+    "emptyTitle": "Conte para todo agente sobre você",
+    "emptyDescription": "Seu papel, o que importa pra você, como prefere trabalhar. Entra em cada conversa nova deste espaço.",
+    "writeButton": "Escrever contexto do usuário",
+    "helper": "Entra em cada conversa nova deste espaço. Os agentes podem atualizar quando você contar algo novo.",
+    "placeholder": "ex. Sou o Juan, líder de vendas. Me importo com velocidade de pipeline e prefiro respostas curtas.",
+    "saving": "Salvando…",
+    "saved": "Salvo"
+  },
+  "provider": {
+    "title": "Provedor de IA",
+    "description": "O Houston usa <emph>sua própria</emph> assinatura. Nunca vemos suas credenciais."
+  },
+  "connectPhone": {
+    "title": "Conectar celular",
+    "description": "Escaneie este código para usar o Houston no seu celular. O mesmo código continua funcionando enquanto este computador estiver ligado e o Houston estiver aberto.",
+    "loading": "Preparando a conexão com seu celular…",
+    "connectingStatus": "Conectando ao serviço do celular. Costuma levar alguns segundos.",
+    "keepComputerAwake": "Mantenha este computador aberto enquanto você usa o Houston no celular.",
+    "alwaysOnHint": "Para acesso 24/7, <emph>Always On</emph> roda o Houston nos nossos servidores.",
+    "errors": {
+      "noInternet": "O Houston precisa de internet na primeira vez que você abre o app. Conecte-se e reabra o Houston para habilitar o pareamento do celular.",
+      "generic": "Não foi possível gerar um código de pareamento. Tente novamente."
+    },
+    "reset": {
+      "title": "Desconectar todos os celulares",
+      "description": "Redefine o QR e sai de todos os celulares conectados a este computador.",
+      "button": "Desconectar todos os celulares",
+      "confirmTitle": "Desconectar todos os celulares?",
+      "confirmDescription": "Isso redefine o QR e sai de todos os celulares conectados a este computador. Escaneie o novo QR para conectar de novo.",
+      "confirmLabel": "Desconectar",
+      "toast": "Acesso pelo celular redefinido"
+    }
+  },
+  "timezone": {
+    "title": "Fuso horário",
+    "description": "Usado quando suas rotinas disparam, 9h significa 9h neste fuso.",
+    "label": "Fuso IANA",
+    "placeholder": "ex. America/Sao_Paulo",
+    "useDetected": "Usar o detectado ({{zone}})"
+  },
+  "appearance": {
+    "title": "Aparência",
+    "light": "Claro",
+    "dark": "Escuro"
+  },
+  "dangerZone": {
+    "title": "Zona de perigo",
+    "description": "Exclui este espaço de trabalho e todos os seus agentes de forma permanente.",
+    "deleteButton": "Excluir espaço de trabalho",
+    "createAnotherFirst": "Crie outro espaço de trabalho antes de excluir este.",
+    "confirmTitle": "Excluir \"{{name}}\"?",
+    "confirmDescription": "Isso exclui este espaço de trabalho e todos os seus agentes de forma permanente. Não dá para desfazer.",
+    "confirmLabel": "Excluir"
+  },
+  "shortcuts": {
+    "title": "Atalhos de teclado",
+    "description": "Use o Houston sem tocar no mouse."
+  },
+  "reportBug": {
+    "title": "Reportar bug",
+    "intro": "Conte para a gente o que deu errado. Vamos enviar sua mensagem junto com os logs da sua última atividade para entender o que aconteceu.",
+    "timingTip": "A gente só recebe a atividade mais recente, então envie o reporte assim que o bug acontecer para a informação ser mais útil.",
+    "toastEquivalence": "Isso é a mesma coisa que tocar em Reportar bug na notificação vermelha de erro, você não precisa enviar os dois.",
+    "label": "O que aconteceu?",
+    "placeholder": "Descreva o bug. O que você estava fazendo, o que esperava e o que aconteceu na verdade?",
+    "send": "Enviar reporte",
+    "sending": "Enviando…",
+    "toasts": {
+      "successTitle": "Recebido, reporte registrado.",
+      "successBody": "O centro de controle já está trabalhando na correção.",
+      "successBodyWithId": "O centro de controle já está trabalhando na correção. Referência: {{id}}",
+      "errorTitle": "Não foi possível enviar o reporte"
+    }
+  },
+  "version": "Versão {{version}}",
+  "toasts": {
+    "workspaceRenamed": "Espaço de trabalho renomeado",
+    "providerSwitched": "Mudou para {{provider}} ({{model}})",
+    "timezoneSet": "Fuso horário definido como {{zone}}",
+    "versionCopied": "Versão copiada",
+    "versionCopyFailed": "Não foi possível copiar a versão"
+  }
+}

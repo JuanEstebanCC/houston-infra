@@ -1,0 +1,244 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Light mode defaults — set as regular CSS vars so dark mode can override */
+:root {
+  --ht-background: #ffffff;
+  --ht-foreground: #0d0d0d;
+  --ht-card: #ffffff;
+  --ht-card-fg: #0d0d0d;
+  --ht-popover: #ffffff;
+  --ht-popover-fg: #0d0d0d;
+  --ht-primary: #0d0d0d;
+  --ht-primary-fg: #ffffff;
+  --ht-secondary: #f5f5f5;
+  --ht-secondary-fg: #0d0d0d;
+  --ht-muted: #f5f5f5;
+  --ht-muted-fg: #8e8e8e;
+  --ht-accent: rgba(0, 0, 0, 0.07);
+  --ht-accent-fg: #424242;
+  --ht-destructive: #e02e2a;
+  --ht-destructive-fg: #ffffff;
+  --ht-border: rgba(0, 0, 0, 0.06);
+  --ht-input: #e3e3e3;
+  --ht-ring: #0d0d0d;
+  --ht-sidebar: #f5f5f5;
+  --ht-sidebar-fg: #0d0d0d;
+  --ht-sidebar-border: rgba(0, 0, 0, 0.06);
+  --ht-sidebar-accent: rgba(0, 0, 0, 0.07);
+  --ht-sidebar-accent-fg: #0d0d0d;
+  --ht-success: #00a240;
+  --ht-success-fg: #ffffff;
+  --ht-warning: #e0ac00;
+  --ht-warning-fg: #ffffff;
+  /* Search-match highlight (e.g. matched keyword in archived-mission search).
+     Translucent so it reads as yellow over white cards AND selected/accent
+     rows without a hard-edged block. */
+  --ht-highlight: rgba(250, 204, 21, 0.45);
+  --ht-highlight-fg: #3f2d00;
+}
+
+/* Dark mode overrides — same vars, different values */
+[data-theme="dark"] {
+  --ht-background: #1e1e1e;
+  --ht-foreground: #e5e5e5;
+  --ht-card: #282828;
+  --ht-card-fg: #e5e5e5;
+  --ht-popover: #282828;
+  --ht-popover-fg: #e5e5e5;
+  --ht-primary: #e5e5e5;
+  --ht-primary-fg: #141414;
+  --ht-secondary: #252525;
+  --ht-secondary-fg: #e5e5e5;
+  --ht-muted: #252525;
+  --ht-muted-fg: #9a9a9a;
+  --ht-accent: rgba(255, 255, 255, 0.08);
+  --ht-accent-fg: #d4d4d4;
+  --ht-destructive: #ef4444;
+  --ht-destructive-fg: #ffffff;
+  --ht-border: rgba(128, 128, 128, 0.10);
+  --ht-input: #383838;
+  --ht-ring: #e5e5e5;
+  --ht-sidebar: #171717;
+  --ht-sidebar-fg: #e5e5e5;
+  --ht-sidebar-border: rgba(255, 255, 255, 0.08);
+  --ht-sidebar-accent: rgba(255, 255, 255, 0.10);
+  --ht-sidebar-accent-fg: #e5e5e5;
+  --ht-success: #22c55e;
+  --ht-success-fg: #000000;
+  --ht-warning: #eab308;
+  --ht-warning-fg: #000000;
+  /* Dimmer amber tint + warm light text so the highlight stays readable on
+     dark cards instead of glaring like a light-mode highlighter. */
+  --ht-highlight: rgba(234, 179, 8, 0.34);
+  --ht-highlight-fg: #fde68a;
+  color-scheme: dark;
+}
+
+/* @theme references the intermediate vars — Tailwind generates utilities from these */
+@theme {
+  --color-background: var(--ht-background);
+  --color-foreground: var(--ht-foreground);
+  --color-card: var(--ht-card);
+  --color-card-foreground: var(--ht-card-fg);
+  --color-popover: var(--ht-popover);
+  --color-popover-foreground: var(--ht-popover-fg);
+  --color-primary: var(--ht-primary);
+  --color-primary-foreground: var(--ht-primary-fg);
+  --color-secondary: var(--ht-secondary);
+  --color-secondary-foreground: var(--ht-secondary-fg);
+  --color-muted: var(--ht-muted);
+  --color-muted-foreground: var(--ht-muted-fg);
+  --color-accent: var(--ht-accent);
+  --color-accent-foreground: var(--ht-accent-fg);
+  --color-destructive: var(--ht-destructive);
+  --color-destructive-foreground: var(--ht-destructive-fg);
+  --color-border: var(--ht-border);
+  --color-input: var(--ht-input);
+  --color-ring: var(--ht-ring);
+  --radius: 0.5rem;
+  --color-sidebar: var(--ht-sidebar);
+  --color-sidebar-foreground: var(--ht-sidebar-fg);
+  --color-sidebar-border: var(--ht-sidebar-border);
+  --color-sidebar-accent: var(--ht-sidebar-accent);
+  --color-sidebar-accent-foreground: var(--ht-sidebar-accent-fg);
+  --color-success: var(--ht-success);
+  --color-success-foreground: var(--ht-success-fg);
+  --color-warning: var(--ht-warning);
+  --color-warning-foreground: var(--ht-warning-fg);
+  --color-highlight: var(--ht-highlight);
+  --color-highlight-foreground: var(--ht-highlight-fg);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+}
+
+
+button,
+[role="button"],
+a,
+summary,
+[onclick] {
+  cursor: pointer;
+}
+
+/* Keep textarea caret proportional to text, not line-height */
+textarea {
+  caret-shape: bar;
+  font-variant-ligatures: none;
+}
+
+/* Kanban card drag cursor (pointer-events based — see @houston-ai/board's
+   use-board-drag). Native HTML5 drag lets each OS pick the drag cursor; the
+   board runs the drag itself, so we force ONE cursor across macOS, Windows and
+   Linux here. The `!important` universal selector beats every element's own
+   cursor (cards rest on `pointer`). `user-select` is killed so a drag never
+   paints a text selection. The forbidden rule (running section) uses two
+   classes, so it outranks the grab rule by specificity regardless of order. */
+body.kanban-dragging,
+body.kanban-dragging * {
+  cursor: grabbing !important;
+}
+body.kanban-dragging {
+  user-select: none;
+  -webkit-user-select: none;
+}
+body.kanban-dragging.kanban-dragging-forbidden,
+body.kanban-dragging.kanban-dragging-forbidden * {
+  cursor: not-allowed !important;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family:
+    ui-sans-serif, -apple-system, "system-ui", "Segoe UI", Helvetica,
+    "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+  margin: 0;
+}
+
+/* Running card glow border — light traces around the edge */
+@property --glow-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes glow-spin {
+  to {
+    --glow-angle: 360deg;
+  }
+}
+
+.card-running-glow {
+  --glow-angle: 0deg;
+  --glow-bg: var(--color-background, #ffffff);
+  position: relative;
+  background:
+    linear-gradient(var(--glow-bg), var(--glow-bg)) padding-box,
+    conic-gradient(
+      from var(--glow-angle),
+      transparent 60%,
+      rgba(59, 130, 246, 0.15) 68%,
+      #3b82f6 74%,
+      #818cf8 78%,
+      #f97316 82%,
+      #fbbf24 84%,
+      transparent 88%
+    ) border-box;
+  border: 1.5px solid transparent;
+  animation: glow-spin 2.5s linear infinite;
+}
+
+
+/* Typing dots — WhatsApp-style "•••" bouncing while an agent is
+ * working. Apply `.typing-dot` to three sibling elements; the
+ * `nth-child` rules stagger them so the bounce travels across. */
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+  30% { transform: translateY(-3px); opacity: 1; }
+}
+
+.typing-dot {
+  animation: typing-bounce 1.2s ease-in-out infinite both;
+}
+.typing-dot:nth-child(1) { animation-delay: 0s; }
+.typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+
+/* Pulsing dot for active tool */
+@keyframes tool-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+.tool-active-dot {
+  animation: tool-pulse 1s ease-in-out infinite;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-foreground) 15%, transparent);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--color-foreground) 30%, transparent);
+}

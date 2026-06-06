@@ -1,0 +1,32 @@
+# 1. Network Policy (Segment 1: Default Deny and Micro-Segmentation)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: engine-zero-trust
+spec:
+  podSelector:
+    matchLabels:
+      app: houston-engine
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: houston-control-plane
+      ports:
+        - protocol: TCP
+          port: 7777
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 443 # Outbound to LLMs (OpenAI/Anthropic)
+        - protocol: UDP
+          port: 53 # DNS
+    - to:
+        - ipBlock:
+            cidr: 10.200.5.0/24 # EXCLUSIVE access to this Tenant's MCP server
+      ports:
+        - protocol: TCP
+          port: 8080

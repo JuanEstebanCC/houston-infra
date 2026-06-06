@@ -1,0 +1,15 @@
+{
+  "name": "website",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npx @11ty/eleventy",
+    "dev": "npx @11ty/eleventy --serve",
+    "deploy": "npm run build && npx wrangler pages deploy _site --project-name=houston-site --branch=main --commit-dirty=true"
+  },
+  "dependencies": {
+    "@11ty/eleventy": "^3.1.5",
+    "marked": "^18.0.2"
+  }
+}

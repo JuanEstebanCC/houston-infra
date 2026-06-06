@@ -1,0 +1,165 @@
+/** A workspace (top-level container, formerly "Space") */
+/** Result of importing a workspace template from GitHub. */
+export interface ImportedWorkspace {
+  workspaceId: string;
+  workspaceName: string;
+  agentIds: string[];
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  createdAt: string;
+  /**
+   * Optional per-workspace UI-locale override (BCP-47 base tag: `en`/`es`/`pt`).
+   * Absent/null means the workspace inherits the global `locale` preference.
+   */
+  locale?: string | null;
+}
+
+/** Agent category for Houston Store filtering */
+export type AgentCategory =
+  | "productivity"
+  | "development"
+  | "research"
+  | "creative"
+  | "business";
+
+/** An agent mode defines a prompt profile (e.g. "execution" or "planning"). */
+export interface AgentMode {
+  id: string;              // e.g. "execution", "planning"
+  name: string;            // Display name, e.g. "Coder", "Planner"
+  promptFile: string;      // Mode name → reads .houston/prompts/modes/{promptFile}.md
+  createLabel: string;     // Button label, e.g. "New Mission"
+}
+
+/** The agent config (houston.json schema) */
+export interface AgentConfig {
+  id: string;
+  name: string;
+  description: string;
+  version?: string;
+  icon?: string;           // Lucide icon name (fallback if no image)
+  image?: string;          // Image URL for store card
+  color?: string;          // Brand color override
+  category?: AgentCategory;
+  author?: string;         // e.g. "Houston" for official, user name for community
+  tags?: string[];         // Searchable tags
+  integrations?: string[]; // Composio toolkit slugs used by bundled agents
+  claudeMd?: string;       // CLAUDE.md content template
+  systemPrompt?: string;   // System prompt for the assistant
+  agentSeeds?: Record<string, string>;  // Files to seed in new agents
+  features?: string[];     // Rust feature flags needed
+  agents?: AgentMode[];    // Multiple prompt profiles for multi-agent setups
+}
+
+/** A resolved agent definition (config + where it came from) */
+export interface AgentDefinition {
+  config: AgentConfig;
+  source: "builtin" | "installed";
+  path?: string;           // For installed: ~/.houston/agents/{id}/
+}
+
+/** An agent instance (formerly "Workspace") */
+export interface Agent {
+  id: string;
+  name: string;
+  folderPath: string;      // ~/.houston/workspaces/{WorkspaceName}/{AgentName}/
+  configId: string;      // Points to an AgentConfig
+  color?: string;        // User-chosen color for avatar
+  createdAt: string;
+  lastOpenedAt?: string;
+}
+
+/** Props injected into every tab component */
+export interface TabProps {
+  agent: Agent;
+  agentDef: AgentDefinition;
+}
+
+/** Skill summary returned by list_skills */
+export interface SkillSummary {
+  name: string;
+  description: string;
+  version: number;
+  tags: string[];
+  created: string | null;
+  last_used: string | null;
+  /** Optional user-facing category (e.g. "Email"). Groups skills in the New Mission picker. */
+  category: string | null;
+  /** Surface on the Featured tab of the New Mission picker. */
+  featured: boolean;
+  /** Composio toolkit slugs this skill uses (e.g. ["gmail","slack"]). */
+  integrations: string[];
+  /** Image URL or Microsoft Fluent 3D Emoji slug (e.g. "rocket"). */
+  image: string | null;
+  /** Legacy structured inputs. Parsed for compatibility, ignored by composer UX. */
+  inputs: SkillInputDef[];
+  /** Legacy prompt template. Parsed for compatibility, ignored by sends. */
+  prompt_template: string | null;
+}
+
+export interface SkillInputDef {
+  name: string;
+  label: string;
+  placeholder?: string;
+  type: "text" | "textarea" | "select";
+  required: boolean;
+  default?: string;
+  /** Options for `type: select`. Empty for text/textarea. */
+  options?: string[];
+}
+
+/** Skill detail returned by load_skill */
+export interface SkillDetail {
+  name: string;
+  description: string;
+  version: number;
+  content: string;
+}
+
+/** Community skill search result */
+export interface CommunitySkillResult {
+  id: string;
+  skillId: string;
+  name: string;
+  installs: number;
+  source: string;
+}
+
+/** A skill discovered in a GitHub repo */
+export interface RepoSkill {
+  id: string;
+  name: string;
+  description: string;
+  path: string;
+}
+
+/** File entry returned by list_project_files */
+export interface FileEntry {
+  path: string;
+  name: string;
+  extension: string;
+  size: number;
+  is_directory?: boolean;
+  dateModified?: number;
+}
+
+/** A listing from the Houston Store registry */
+export interface StoreListing {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  author: string;
+  tags: string[];
+  icon_url: string;
+  integrations?: string[];
+  repo: string;
+  installs: number;
+  registered_at: string;
+  version?: string;
+  content_hash?: string;
+  bundled?: boolean;
+}

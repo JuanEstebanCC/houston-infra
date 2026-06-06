@@ -1,0 +1,64 @@
+{
+  "title": "Centro de misiones",
+  "archived": {
+    "back": "Volver",
+    "button": "Archivadas",
+    "title": "Archivadas"
+  },
+  "filter": {
+    "allAgents": "Todos los agentes"
+  },
+  "search": {
+    "placeholder": "Buscar misiones",
+    "placeholderShort": "Buscar...",
+    "clear": "Borrar búsqueda",
+    "clearCta": "Borrar búsqueda",
+    "searchingText": "Buscando en el texto de las misiones",
+    "searchingTitle": "Buscando en el texto de las misiones",
+    "searchingDescription": "Revisando mensajes anteriores.",
+    "emptyTitle": "No hay misiones que coincidan",
+    "emptyDescription": "Prueba otra búsqueda o borra la actual.",
+    "historyErrorTitle": "No se pudieron buscar todas las misiones",
+    "historyErrorDescription": "No se pudo cargar parte del texto de misiones anteriores."
+  },
+  "columns": {
+    "running": "En curso",
+    "needsYou": "Necesita tu atención",
+    "done": "Listo"
+  },
+  "empty": {
+    "boardTitle": "Aún no hay conversaciones",
+    "boardDescription": "Inicia una conversación nueva para delegarle trabajo a un agente.",
+    "newMission": "Nueva misión"
+  },
+  "noAgents": {
+    "title": "Aún no tienes agentes",
+    "description": "Arma tu equipo de IA y haz lo imposible.",
+    "cta": "Nuevo agente"
+  },
+  "errors": {
+    "noAgentForMission": "Elige un agente antes de iniciar una misión.",
+    "stopSession": "No se pudo detener la misión: {{error}}"
+  },
+  "agentPicker": {
+    "title": "¿Qué agente debería ejecutar esto?",
+    "description": "Elige un agente para abrir una nueva conversación."
+  },
+  "skillPicker": {
+    "title": "Elige un skill",
+    "description": "Explora los skills que este agente ya sabe hacer.",
+    "descriptionWithAgent": "Explora los skills que {{name}} ya sabe hacer.",
+    "agentLabel": "Agente",
+    "agentPlaceholder": "Selecciona un agente...",
+    "blank": "Conversación en blanco",
+    "blankDescription": "Abre un chat nuevo y escribe tu propia indicación.",
+    "featuredTab": "Destacados",
+    "otherTab": "Otros",
+    "empty": "Aún no hay skills.",
+    "pickAgentFirst": "Elige un agente para ver sus skills.",
+    "skillsLoading": "Cargando skills...",
+    "skillsEmpty": "Aún no hay skills en esta categoría.",
+    "scrollTabsLeft": "Desplazar pestañas de skills a la izquierda",
+    "scrollTabsRight": "Desplazar pestañas de skills a la derecha"
+  }
+}

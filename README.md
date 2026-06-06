@@ -1,209 +1,62 @@
-<p align="center">
-  <a href="https://gethouston.ai">
-    <strong>Houston</strong>
-  </a>
-</p>
+# 🚀 Houston Zero-Trust Multi-Tenant Engine
 
-<p align="center">
-  <strong>The open source platform for AI-native products.</strong><br>
-  One desktop app. Pre-built AI agents that work from day one.<br>
-  Real tools. 1000+ integrations. Free forever.
-</p>
+**Houston HackCamp 2026 - Presentación para el Track A**
 
-<p align="center">
-  <a href="https://gethouston.ai">gethouston.ai</a> ·
-  <a href="https://gethouston.ai/vision/">Vision</a> ·
-  <a href="https://gethouston.ai/learn/">Learn</a> ·
-  <a href="https://gethouston.ai/startups/">For Startups</a> ·
-  <a href="https://forms.gle/ac24qrKSufYvfudt8">Join the waiting list</a>
-</p>
+Este repositorio contiene la arquitectura, el código de infraestructura y la demostración para desplegar **10,000 agentes de Houston de forma segura** en un entorno multi-tenant.
 
-<p align="center">
-  <a href="https://github.com/gethouston/houston/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-0d0d0d" alt="MIT License"></a>
-  <a href="https://github.com/gethouston/houston/stargazers"><img src="https://img.shields.io/github/stars/gethouston/houston?color=0d0d0d" alt="Stars"></a>
-</p>
+Resuelve el desafío principal de seguridad y escalabilidad: *¿Cómo evitamos que un agente comprometido (vía Prompt Injection) robe credenciales de otros inquilinos o consuma todos los recursos del VPS?*
 
----
+## 🏗️ La Arquitectura (Defensa en Profundidad)
 
-## What Houston is
+Evolucionamos el motor nativo de Houston hacia un modelo **Stateful Serverless** (inspirado en Vercel/Fly.io) con seguridad de confianza cero (Zero-Trust):
 
-**For everyone** — a free desktop app with AI agents that do real work. Bookkeeping, outreach, research, scheduling. Install agents from the store and start working. No terminal. No prompt engineering.
+1. **Aislamiento a nivel Kernel (Infraestructura):** Cada agente corre en un Pod de Kubernetes efímero con sistema de archivos de solo lectura, sin privilegios (`runAsNonRoot: true`) y sin capacidades de kernel (`drop: ALL`).
+2. **Aislamiento de Red (Default Deny):** Políticas de red estrictas permiten salida solo hacia APIs autorizadas (OpenAI/Anthropic) y hacia el Servidor MCP exclusivo del tenant.
+3. **Persistencia sin Discos (Bifurcación de Estado):** Eliminamos los costosos PVCs. El historial pesado vive en Turso/LibSQL remoto, mientras que las credenciales de sesión se hidratan desde S3 (`InitContainers`) y Vault (CSI) en milisegundos.
+4. **Observabilidad eBPF:** Usamos **Falco** para monitorear las llamadas al sistema (bloqueando si un agente intenta spawnear `/bin/bash`) y **Cilium** para telemetría de red.
 
-**For founders** — the platform where you build AI-native products for your customers. Define your agents, Houston handles the workspace, the chat, the board, the integrations. You bring the domain expertise. [Read more](https://gethouston.ai/startups/).
+> 📖 **Lee el plan completo en:** [PLAN_ARQUITECTURA.md](./PLAN_ARQUITECTURA.md)
+> 🎥 **Guión del Pitch:** [PITCH.md](./PITCH.md)
 
-> **Read the vision:** [Ship the impossible](https://gethouston.ai/vision/)
+## 📂 Estructura del Repositorio
 
----
+Hemos integrado nuestro código directamente sobre la base de Houston para demostrar viabilidad real:
 
-## Quick start
+* `houston-infra/cloud/provision-tenant-zerotrust/index.ts`: **El Control Plane**. Una evolución de la Edge Function de Supabase para orquestar la creación de pods aislados en K8s.
+* `houston-infra/cloud/k8s-manifests/`: Manifiestos YAML de K8s (NetworkPolicies, Deployments, InitContainers).
+* `houston-infra/cloud/security/falco-rules.yaml`: Reglas de seguridad eBPF para detectar comportamientos maliciosos del motor.
+* `houston-infra/always-on/docker-compose.yml`: Hemos **endurecido (hardened)** el entorno de Docker local inyectando restricciones similares a K8s para la demo.
+* `demo-headless/client.js`: Script de Node.js para ejecutar la demostración de conexión y simular el ataque.
 
-### Run the Houston app
+## 🚀 Cómo correr la Demo Local
 
-```bash
-git clone https://github.com/gethouston/houston.git
-cd houston
-pnpm install
-cd app && pnpm tauri dev
-```
+Para la demostración del hackathon, probaremos la seguridad del contenedor endurecido ejecutando un flujo Headless.
 
-### Build your first agent
+### Prerrequisitos
+* Docker y Docker Compose instalados.
+* Node.js (v18+)
 
-Create two files:
+### Pasos
 
-**houston.json**
-```json
-{
-  "id": "bookkeeper",
-  "name": "Bookkeeper",
-  "description": "Categorize expenses and reconcile accounts.",
-  "icon": "Calculator",
-  "category": "business"
-}
-```
+1. **Levantar el Engine Seguro:**
+   Ingresa a la carpeta del motor y levántalo. El archivo `docker-compose.yml` ha sido modificado para emular el *SecurityContext* de Kubernetes (`read_only: true`, `cap_drop: ALL`).
+   ```bash
+   cd houston-infra/always-on
+   cp .env.example .env
+   # Asegúrate de configurar un token en el .env, ej: HOUSTON_ENGINE_TOKEN=demo-token
+   docker compose up -d
+   ```
 
-**CLAUDE.md**
-```markdown
-# Bookkeeper
+2. **Ejecutar el Cliente de Prueba:**
+   Abre una nueva terminal, exporta tu token y ejecuta el simulador.
+   ```bash
+   export HOUSTON_ENGINE_TOKEN="demo-token"
+   node demo-headless/client.js
+   ```
 
-You categorize transactions, reconcile accounts, and flag anomalies.
-Ask which period the user wants before starting.
-```
-
-Push to GitHub. In Houston, click **New Agent > GitHub**, paste your repo URL. Done.
-
-The [Learn guide](https://gethouston.ai/learn/) covers the full details in five short chapters.
-
-### Share a workspace template
-
-Bundle multiple agents into one repo:
-
-```
-my-workspace/
-├── workspace.json
-└── agents/
-    ├── bookkeeper/
-    │   ├── houston.json
-    │   └── CLAUDE.md
-    └── tax-reviewer/
-        ├── houston.json
-        └── CLAUDE.md
-```
-
-**workspace.json**
-```json
-{
-  "name": "Tax Practice",
-  "description": "A complete workspace for tax professionals.",
-  "agents": ["bookkeeper", "tax-reviewer"]
-}
-```
-
-In Houston, click **New Workspace > Import from GitHub**, paste the repo URL. Houston creates the workspace with all agents ready to use.
+3. **Ver el resultado:**
+   El script comprobará la salud del servidor, simulará una petición legítima y luego lanzará un **Payload de Prompt Injection** diseñado para romper el aislamiento. 
+   La salida explicará cómo la infraestructura (Sistemas de solo lectura, Reglas eBPF de Falco y Cilium) neutraliza la amenaza en milisegundos.
 
 ---
-
-## How the app works
-
-Houston organizes work into **Workspaces** and **Agents**:
-
-- **Workspace** — a group of agents (like a team or project).
-- **Agent** — an AI agent instance. Chat, kanban board, skills, files, integrations.
-- **Agent Definition** — a `houston.json` that defines what an agent looks like and does.
-
-```
-Workspace ("Tax Practice")
-  ├── Agent ("Bookkeeper")         ← board, files, instructions
-  ├── Agent ("Document Reviewer")  ← board, files, integrations
-  └── Agent ("Client Comms")       ← board, files, integrations
-```
-
-Each kanban card is a Claude conversation. Click a card to see the full chat. Connect Slack and the same conversation becomes a thread.
-
----
-
-## Agent definitions
-
-Two tiers:
-
-| Tier | What you write | What you get |
-|------|---------------|-------------|
-| **JSON-only** | `houston.json` + `CLAUDE.md` | A new agent. Renders the standard shell (Activity, Routines, Files, Job Description, Integrations). |
-| **Workspace template** | `workspace.json` + agents folder | Multiple agents, one import. |
-
-Every agent shows the same five tabs. The list lives in `app/src/agents/standard-tabs.ts` if you want to read it in code.
-
----
-
-## Monorepo layout
-
-Organized as **6 end-user products + 3 code libraries**.
-
-```
-houston/
-├── app/                     Houston App — desktop (Tauri 2)
-│   ├── src/                 React frontend
-│   ├── src-tauri/           Tauri binary
-│   └── houston-tauri/       Tauri adapter (applies Engine to desktop)
-├── mobile/                  Houston Mobile companion
-├── desktop-mobile-bridge/   Cloudflare Worker — pairs Desktop ↔ Mobile
-├── store/                   Houston Store — agent registry
-├── website/                 Houston Website — gethouston.ai
-├── always-on/               Houston Always On — VPS deploy (Dockerfile + compose + systemd)
-├── teams/                   Houston Teams (TBD — hosted multi-tenant)
-│
-├── ui/                      Houston UI — @houston-ai/* React packages
-├── engine/                  Houston Engine — Rust crates (frontend-agnostic)
-├── cloud/                   Houston Cloud (TBD — managed Engine hosting)
-│
-└── examples/                Reference consumers of houston-engine
-    └── smartbooks/            Bookkeeping app built on a custom React frontend
-```
-
-See `knowledge-base/architecture.md` for crate-level detail + current gaps.
-
----
-
-## Build on Houston Engine (custom frontends)
-
-The engine is frontend-agnostic. You don't have to ship inside the
-Houston App — any web or native runtime can drive it over HTTP +
-WebSocket using [`@houston-ai/engine-client`](ui/engine-client/).
-
-**Working example: [SmartBooks](examples/smartbooks/)** — a
-bookkeeping product with its own brand, its own UX, and zero
-`@houston-ai/*` UI deps. ~400 lines of TSX, one npm package, renders
-a live transactions table + a multi-sheet Excel workpaper. Soft
-workflow: the user asks for a new column, Claude edits the Python
-script, every future upload picks up the change. Clone it, rename
-things, ship your own AI-native product.
-
-```bash
-cd examples/smartbooks
-pnpm install
-pnpm dev
-```
-
-Full walkthrough + architecture diagram + custom-frontend gotchas in
-[examples/smartbooks/README.md](examples/smartbooks/README.md).
-
----
-
-## Resources
-
-- **[gethouston.ai](https://gethouston.ai)** — landing page
-- **[For Startups](https://gethouston.ai/startups/)** — build AI-native products on Houston
-- **[Vision essay](https://gethouston.ai/vision/)** — Ship the impossible
-- **[Learn guide](https://gethouston.ai/learn/)** — five chapters on building agents
-- **[Join the waiting list](https://forms.gle/ac24qrKSufYvfudt8)** — get notified when the app ships
-
----
-
-## Contributing
-
-Houston is open source under MIT. Issues and PRs welcome.
-
----
-
-## License
-
-MIT
+*Hecho con 🩵 para el Houston HackCamp 2026*
